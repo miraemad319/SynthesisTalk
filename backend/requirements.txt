@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+python-multipart
+PyMuPDF
+psycopg2-binary
+python-dotenv
+sqlmodel
+pydantic-settings
+python-docx
+openai

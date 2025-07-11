@@ -1,0 +1,16 @@
+import axios from "./axios";
+
+// Fetch all messages for a session
+export async function fetchMessages(sessionId) {
+  const response = await axios.get(`/session/${sessionId}/messages`);
+  return response.data;
+}
+
+// Send a chat message for a session
+export async function sendMessage(sessionId, userMessage) {
+  const response = await axios.post("/session/chat", {
+    session_id: sessionId,
+    user_message: userMessage,
+  });
+  return response.data;
+}
