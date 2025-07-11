@@ -1,16 +1,16 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware  # <-- Import this
+from fastapi.middleware.cors import CORSMiddleware
 from services.db_session import create_db_and_tables
-from routers import upload, session, chat
+from routers import upload, session, chat, documents
 
 app = FastAPI()
 
 app.add_middleware(
-  CORSMiddleware,
-  allow_origins=["http://localhost:3000"],  # frontend origin
-  allow_credentials=True,
-  allow_methods=["*"],
-  allow_headers=["*"],
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],  # Vite dev server
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.on_event("startup")
@@ -24,3 +24,4 @@ def read_root():
 app.include_router(session.router)
 app.include_router(upload.router)
 app.include_router(chat.router)
+app.include_router(documents.router)
