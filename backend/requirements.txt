@@ -8,3 +8,8 @@ sqlmodel
 pydantic-settings
 python-docx
 openai
+tiktoken
+pgvector
+langchain
+langchain_community
+sentence-transformers

@@ -1,0 +1,39 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Distribution / build directories
+dist/
+build/
+*.egg-info/
+
+# Logs and debug files
+*.log
+*.out
+*.err
+
+# Virtual environment directories
+.venv/
+venv/
+
+# Environment variables and secrets
+.env
+*.env
+
+# Database files
+*.db
+*.sqlite3
+
+# Test and coverage files
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.cache/
+
+# Session and temporary files
+session_data.json
+*.tmp
+*.swp
