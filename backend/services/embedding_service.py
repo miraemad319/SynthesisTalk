@@ -7,6 +7,7 @@ from sentence_transformers import SentenceTransformer
 # Set up logging
 logger = logging.getLogger(__name__)
 
+
 # Load the Hugging Face model globally to avoid reloading it for every request
 hf_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
 

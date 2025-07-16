@@ -1,17 +1,46 @@
-__pycache__/ 
-*.pyc 
-*.pyo 
-*.pyd 
-*.db 
-.env 
-.venv/ 
-venv/ 
-node_modules/ 
-dist/ 
-build/ 
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environment directories
+.venv/
+venv/
+venv311/
+
+# Distribution / build directories
+dist/
+build/
+*.egg-info/
+
+# Logs and debug files
 *.log
+*.out
+*.err
+
+# Environment variables and secrets
+.env
+*.env
+
+# Database files
+*.db
+*.sqlite3
+
+# IDE and editor settings
 .vscode/
+.idea/
 .DS_Store
 Thumbs.db
-*.pytest_cache/
+
+# Test and coverage files
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.cache/
+
+# Session and temporary files
 session_data.json
+*.tmp
+*.swp
