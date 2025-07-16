@@ -1,3 +1,4 @@
+// upload.js in api folder
 import axios from "./axios";
 
 export async function uploadPDF(file, sessionId) {

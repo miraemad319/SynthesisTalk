@@ -1,3 +1,4 @@
+// chat.js in api folder
 import axios from "./axios";
 
 // Fetch all messages for a session

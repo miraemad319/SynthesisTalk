@@ -1,3 +1,4 @@
+//session.js in api folder
 import axios from "./axios";
 
 // Get all sessions
