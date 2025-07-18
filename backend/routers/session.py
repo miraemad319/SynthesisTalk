@@ -44,3 +44,15 @@ def delete_session(session_id: int, db: Session = Depends(get_session)):
     db.commit()
 
     return {"message": "Session and related data deleted"}
+
+# Clear all sessions and their related data
+@router.delete("/session/clear")
+def clear_all_sessions(db: Session = Depends(get_session)):
+    # Delete child data first to avoid foreign key conflicts
+    db.exec(delete(Message))
+    db.exec(delete(Document))
+    db.exec(delete(Summary))
+    db.exec(delete(ResearchSession))
+    db.commit()
+
+    return {"message": "All sessions and related data cleared"}

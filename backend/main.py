@@ -1,9 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from services.db_session import create_db_and_tables
-from routers import upload, session, chat, documents
+from routers import upload, session, chat, documents, summary, search, export
 
-app = FastAPI()
+app = FastAPI(
+    title="SynthesisTalk API",
+    description="Intelligent Research Assistant with Multi-Source Context",
+    version="2.0.0"
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -25,3 +29,6 @@ app.include_router(session.router)
 app.include_router(upload.router)
 app.include_router(chat.router)
 app.include_router(documents.router)
+app.include_router(search.router)
+# app.include_router(summary.router)
+# app.include_router(export.router)

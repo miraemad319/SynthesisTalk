@@ -13,3 +13,7 @@ pgvector
 langchain
 langchain_community
 sentence-transformers
+aiohttp
+beautifulsoup4
+lxml
+numpy

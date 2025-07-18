@@ -22,3 +22,8 @@ def get_session():
     with Session(engine) as session:
         yield session
 
+# Alias for backward compatibility and consistency
+def get_db():
+    """Alias for get_session() for consistency across the codebase"""
+    return get_session()
+

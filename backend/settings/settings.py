@@ -20,6 +20,13 @@ class Settings(BaseSettings):
     NGU_BASE_URL: Optional[str]
     NGU_MODEL: Optional[str]
 
+    GOOGLE_SEARCH_API_KEY: Optional[str]
+    GOOGLE_CSE_ID: Optional[str]
+    GOOGLE_URL: Optional[str]
+
+    SERPAPI_API_KEY: Optional[str]
+    SERPAPI_URL: Optional[str]
+
     class Config:
         env_file = ".env"
 

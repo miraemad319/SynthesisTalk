@@ -39,7 +39,7 @@ class Embedding(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     session_id: int = Field(foreign_key="session.id")
     text: str
-    embedding: list[float] = Field(sa_column=Column(Vector(1536)))  # TODDO: Adjust dimension based on your embedding model
+    embedding: list[float] = Field(sa_column=Column(Vector(384)))  # Dimension for all-MiniLM-L6-v2 model
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     messages: list[Message] = Relationship(back_populates="embedding")
