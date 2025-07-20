@@ -26,6 +26,7 @@ class Document(SQLModel, table=True):
     embedding_id: Optional[int] = Field(default=None, foreign_key="embedding.id")
     filename: str
     text: str
+    uploaded_at: datetime = Field(default_factory=datetime.utcnow)
     embedding: Optional["Embedding"] = Relationship(back_populates="documents")
 
 class Embedding(SQLModel, table=True):

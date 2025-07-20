@@ -11,6 +11,9 @@ from services.db_session import get_session
 from services.embedding_service import generate_embedding, store_embedding
 from services.document_service import save_document, get_documents_text
 from services.context_service import ContextBuilder, build_prompt
+from services.feedback_analysis import analyze_feedback
+from services.summarize_service import generate_summary
+from services.unified_search_service import search_service
 from settings.settings import settings
 
 from utils.text_utils import trim_text_to_token_limit
@@ -26,11 +29,24 @@ router = APIRouter()
 @router.get("/session/{session_id}/messages")
 def get_messages(session_id: int, db: Session = Depends(get_session)):
     try:
+        # Fetch messages
         statement = select(Message).where(Message.session_id == session_id).order_by(Message.timestamp.asc())
-        return db.execute(statement).scalars().all()
+        messages = db.execute(statement).scalars().all()
+
+        # Fetch documents (uploaded files)
+        document_statement = select(Document).where(Document.session_id == session_id).order_by(Document.uploaded_at.asc())
+        documents = db.execute(document_statement).scalars().all()
+
+        # Combine messages and documents
+        combined_results = {
+            "messages": messages,
+            "documents": documents
+        }
+
+        return combined_results
     except Exception as e:
         logger.error(f"❌ Get messages error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve messages: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve messages and documents: {str(e)}")
 
 @router.post("/session/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)):
@@ -38,6 +54,7 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
     Handle user messages and generate bot responses.
     """
     try:
+        logger.info("Storing user message...")
         # Store user message
         user_message = Message(
             session_id=request.session_id,
@@ -48,12 +65,15 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
         db.commit()
         db.refresh(user_message)
 
+        logger.info("Checking for summarize request...")
         # Check if the message is a 'summarize' request
         if "summarize" in request.message.lower():
             try: 
+                logger.info("Generating summary...")
                 # Generate a summary in the default format (e.g., 'paragraph')
                 summary_text = generate_summary(request.message, format="paragraph")
 
+                logger.info("Storing summary as bot response...")
                 # Save the summary as a bot response
                 bot_message = Message(
                     session_id=request.session_id,
@@ -65,6 +85,7 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
                 db.commit()
                 db.refresh(bot_message)
 
+                logger.info("Generating and storing embedding for summary...")
                 # Generate and store embedding for the summary
                 embedding_vector = generate_embedding(summary_text)
                 if embedding_vector:
@@ -80,18 +101,7 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
                 logger.error(f"Error while processing summarize request: {e}")
                 raise HTTPException(status_code=500, detail="Failed to process summarize request")
 
-        # Determine if web search is needed (bot-driven logic)
-        include_web = request.enable_web_search
-        if not include_web:
-            # Bot-driven logic: Check if query requires web search
-            keywords = [
-                "latest", "current", "news", "find", "search", "web", "online",
-                "update", "trending", "breaking", "recent", "discover", "lookup"
-            ]
-            if any(keyword in request.message.lower() for keyword in keywords):
-                include_web = True
-
-
+        logger.info("Building context...")
         # Build context
         context_builder = ContextBuilder(db)
         context_result = await context_builder.build_context(
@@ -101,35 +111,56 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
             include_documents=request.enable_document_search
         )
 
+        logger.info("Generating prompt...")
         # Generate prompt
-        prompt = await build_prompt(request.message, context_result)
+        prompt = build_prompt(context_result["context"], request.message, db=db)
 
-        # Get LLM response
-        bot_response = await get_llm_response(prompt)
+        logger.info("Getting LLM response...")
+        try:
+            # Get LLM response
+            bot_response = await get_llm_response(prompt)
 
+            # Ensure bot_response is handled correctly
+            if isinstance(bot_response, str):
+                bot_message_content = bot_response
+            elif isinstance(bot_response, dict) and "content" in bot_response:
+                bot_message_content = bot_response["content"]
+            else:
+                bot_message_content = "Unable to process the response from the AI service."
+        except Exception as e:
+            logger.debug(f"Raw LLM response: {locals().get('bot_response', 'No response received')}")
+            logger.error(f"Error while getting LLM response: {e}")
+            bot_message_content = (
+                "I apologize, but I'm currently unable to process your request due to technical issues with the AI services. "
+                "Please try again later."
+            )
+
+        logger.info("Storing bot response...")
         # Store bot response
         bot_message = Message(
             session_id=request.session_id,
             sender="bot",
-            content=bot_response
+            content=bot_message_content
         )
         db.add(bot_message)
         db.commit()
 
+        logger.info("Generating and storing embeddings...")
         # Generate and store embeddings
         store_embedding(db, request.session_id, request.message)
-        store_embedding(db, request.session_id, bot_response)
+        store_embedding(db, request.session_id, bot_message_content)
 
+        logger.info("Performing combined search if web search is enabled...")
         # Perform combined search if web search is enabled
         search_results = {}
         sources_used = []
-        if include_web:
+        if request.enable_web_search:
             from services.unified_search_service import search_service
             search_results = await search_service.combined_search(
                 query=request.message,
                 session_id=request.session_id,
                 db=db,
-                include_web=include_web,
+                include_web=request.enable_web_search,
                 include_documents=request.enable_document_search
             )
 
@@ -144,14 +175,15 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
         if sources_used:
             prompt += "\n\nSources used in the search:\n" + "\n".join(sources_used)
 
+        logger.info("Returning chat response...")
         return ChatResponse(
             success=True,
-            response=bot_response,
+            response=bot_message_content,
             session_id=request.session_id,
             tool_calls_made=context_result["metadata"].get("tool_calls", []),
             metadata={
                 "search_results": search_results,
-                "sources_used": sources_used  # Move sources_used into metadata
+                "sources_used": sources_used
             }
         )
 

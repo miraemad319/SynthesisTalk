@@ -11,9 +11,11 @@ openai
 tiktoken
 pgvector
 langchain
+langchain-openai
 langchain_community
 sentence-transformers
 aiohttp
 beautifulsoup4
 lxml
 numpy
+alembic

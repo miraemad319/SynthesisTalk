@@ -9,6 +9,7 @@ from models.db_models import Message, Document
 from services.document_service import search_documents, get_documents_by_session, get_document_by_id
 from services.web_search import search_web
 from services.embedding_service import generate_embedding
+from services.feedback_analysis import analyze_feedback
 from utils.text_utils import trim_text_to_token_limit
 import asyncio
 
@@ -96,6 +97,12 @@ class ContextBuilder:
             # 5. Build final context within token limits
             final_context = self._combine_context_parts(context_parts, user_message)
             
+            # Log the final context and metadata
+            logger.info("Final context built:")
+            logger.info(final_context)
+            logger.info("Metadata:")
+            logger.info(metadata)
+
             return {
                 "context": final_context,
                 "metadata": metadata,

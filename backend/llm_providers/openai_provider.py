@@ -16,21 +16,23 @@ async def call_openai(prompt: str) -> str:
 
     try:
         logger.info("🔹 [OpenAI] Making API call...")
-        response = await openai_client.agenerate(
-            messages=[
-                {"role": "system", "content": "You are a helpful research assistant."},
-                {"role": "user", "content": prompt},
-            ],
-            max_tokens=500,
-            temperature=0.7,
-        )
-
+        
+        # Use the correct LangChain method and format
+        from langchain_core.messages import HumanMessage, SystemMessage
+        
+        messages = [
+            SystemMessage(content="You are a helpful research assistant."),
+            HumanMessage(content=prompt)
+        ]
+        
+        response = await openai_client.ainvoke(messages)
+        
         logger.debug(f"🔍 [OpenAI] Response: {response}")
 
-        if not response or not response.choices or not response.choices[0].message.content:
+        if not response or not response.content:
             raise Exception("Empty response from OpenAI")
 
-        result = response.choices[0].message.content.strip()
+        result = response.content.strip()
         logger.info("✅ [OpenAI] Success")
         return result
 

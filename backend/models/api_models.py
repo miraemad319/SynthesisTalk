@@ -3,7 +3,7 @@ Shared API Models
 Common request/response models to eliminate redundancy across routers
 """
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # Base Models
 class BaseRequest(BaseModel):
@@ -122,6 +122,6 @@ class UploadResponse(BaseResponse):
 class StructuredSummaryRequest(BaseRequest):
     """Request model for structured summaries"""
     session_id: int
-    text: str  # Text to summarize
-    format: str  # Summary format: 'bullet', 'paragraph', 'insight'
+    text: Optional[str] = None # Text to summarize
+    format: str = Field(..., pattern="^(bullet|paragraph|insight)$", description="Summary format: 'bullet', 'paragraph', 'insight'")
 

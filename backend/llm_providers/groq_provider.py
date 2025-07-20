@@ -12,7 +12,9 @@ async def call_groq(prompt: str) -> str:
     try:
         logger.info("🔹 [Groq] Making API call...")
 
-        url = f"{settings.GROQ_BASE_URL}/v1/chat/completions" if settings.GROQ_BASE_URL else "https://api.groq.com/openai/v1/chat/completions"
+        url = settings.GROQ_BASE_URL or "https://api.groq.com/openai/v1/chat/completions"
+        if not url.endswith('/v1/chat/completions'):
+            url = f"{url.rstrip('/')}/v1/chat/completions"
 
         headers = {
             "Authorization": f"Bearer {settings.GROQ_API_KEY}",
