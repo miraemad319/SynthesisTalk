@@ -6,7 +6,7 @@ from sqlalchemy import pool
 from alembic import context
 from sqlmodel import SQLModel
 
-from models.db_models import Document, Session, Message, Summary, Embedding
+from models.db_models import Document, Session, Message, Embedding
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

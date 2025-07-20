@@ -5,7 +5,7 @@ import logging
 from typing import List, Dict, Any, Optional
 from sqlmodel import Session, select
 from sqlalchemy.sql import text
-from models.db_models import Message, Document, Summary
+from models.db_models import Message, Document
 from services.document_service import search_documents, get_documents_by_session, get_document_by_id
 from services.web_search import search_web
 from services.embedding_service import generate_embedding
@@ -301,9 +301,9 @@ async def build_context(db: Session, session_id: int, user_message: str) -> str:
     result = await builder.build_context(session_id, user_message)
     return result["context"]
 
-async def build_prompt(context: str, user_message: str, system_prompt: str = None) -> str:
+def build_prompt(context: str, user_message: str, system_prompt: str = None, db: Session = None) -> str:
     """
-    Build the final prompt for the LLM
+    Build the final prompt for the LLM, incorporating feedback patterns and system guidance.
     """
     if system_prompt is None:
         system_prompt = """You are SynthesisTalk, an intelligent research assistant. You help users by:
@@ -321,14 +321,32 @@ When responding:
 - Offer to search for additional information if needed
 - Maintain conversation context and remember previous discussions"""
 
+    # Analyze feedback patterns if db is provided
+    avoid_phrases = []
+    encourage_phrases = []
+    if db:
+        feedback_patterns = analyze_feedback(db)
+        avoid_phrases = [word for word, count in feedback_patterns["thumbs_down"] if count > 2]  # Avoid frequent negative patterns
+        encourage_phrases = [word for word, count in feedback_patterns["thumbs_up"] if count > 2]  # Encourage frequent positive patterns
+
+    # Build the base prompt
     prompt_parts = [system_prompt]
-    
+
     if context and context.strip():
         prompt_parts.append(f"CONTEXT:\n{context}")
-    
+
     prompt_parts.append(f"USER MESSAGE: {user_message}")
+
+    # Add a note to avoid certain phrases if necessary
+    if avoid_phrases:
+        prompt_parts.append("(Note: Avoid using the following phrases: " + ", ".join(avoid_phrases) + ")")
+
+    # Add a note to encourage certain phrases if necessary
+    if encourage_phrases:
+        prompt_parts.append("(Note: Consider using the following phrases: " + ", ".join(encourage_phrases) + ")")
+
     prompt_parts.append("RESPONSE:")
-    
+
     return "\n\n".join(prompt_parts)
 
 

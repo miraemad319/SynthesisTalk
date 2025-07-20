@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlmodel import Session, select, delete
 from services.db_session import get_session
-from models.db_models import Session as ResearchSession, Message, Document, Summary
+from models.db_models import Session as ResearchSession, Message, Document
 
 router = APIRouter()
 

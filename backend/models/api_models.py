@@ -36,14 +36,12 @@ class WebSearchResponse(BaseModel):
 class DocumentSearchRequest(BaseSearchRequest):
     """Document search request model"""
     session_id: int  # Required for document search
-    limit: Optional[int] = 5
 
 class CombinedSearchRequest(BaseSearchRequest):
     """Combined search request model"""
     include_web: Optional[bool] = True
     include_documents: Optional[bool] = True
     web_results_limit: Optional[int] = 5
-    doc_results_limit: Optional[int] = 3
     search_provider: Optional[str] = "auto"
 
 # Chat Models
@@ -119,4 +117,11 @@ class UploadResponse(BaseResponse):
     filename: str
     file_size: int
     processing_status: str
+
+# Structured Summary Models
+class StructuredSummaryRequest(BaseRequest):
+    """Request model for structured summaries"""
+    session_id: int
+    text: str  # Text to summarize
+    format: str  # Summary format: 'bullet', 'paragraph', 'insight'
 

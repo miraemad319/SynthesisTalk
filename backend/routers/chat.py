@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import datetime
 import requests
 import logging
@@ -15,7 +15,7 @@ from settings.settings import settings
 
 from utils.text_utils import trim_text_to_token_limit
 from llm_providers.llm_manager import get_llm_response
-from models.api_models import ChatRequest, ChatResponse
+from models.api_models import ChatRequest, ChatResponse, StructuredSummaryRequest
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -48,6 +48,38 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
         db.commit()
         db.refresh(user_message)
 
+        # Check if the message is a 'summarize' request
+        if "summarize" in request.message.lower():
+            try: 
+                # Generate a summary in the default format (e.g., 'paragraph')
+                summary_text = generate_summary(request.message, format="paragraph")
+
+                # Save the summary as a bot response
+                bot_message = Message(
+                    session_id=request.session_id,
+                    sender="bot",
+                    content=summary_text,
+                    timestamp=datetime.utcnow()
+                )
+                db.add(bot_message)
+                db.commit()
+                db.refresh(bot_message)
+
+                # Generate and store embedding for the summary
+                embedding_vector = generate_embedding(summary_text)
+                if embedding_vector:
+                    store_embedding(bot_message.id, embedding_vector, db)
+
+                return ChatResponse(
+                    response=summary_text,
+                    session_id=request.session_id,
+                    tool_calls_made=[],
+                    metadata={}
+                )
+            except Exception as e:
+                logger.error(f"Error while processing summarize request: {e}")
+                raise HTTPException(status_code=500, detail="Failed to process summarize request")
+
         # Determine if web search is needed (bot-driven logic)
         include_web = request.enable_web_search
         if not include_web:
@@ -58,6 +90,7 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
             ]
             if any(keyword in request.message.lower() for keyword in keywords):
                 include_web = True
+
 
         # Build context
         context_builder = ContextBuilder(db)
@@ -125,3 +158,32 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
     except Exception as e:
         logger.error(f"Error in chat endpoint: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+# Provide feedback for a bot response
+@router.post("/message/{message_id}/feedback")
+def provide_feedback(message_id: int, thumbs_up: Optional[bool] = None, thumbs_down: Optional[bool] = None, db: Session = Depends(get_session)):
+    # Validate message
+    message = db.get(Message, message_id)
+    if not message:
+        return {"error": "Message not found"}
+
+    # Update feedback
+    if thumbs_up is not None:
+        message.thumbs_up = thumbs_up
+    if thumbs_down is not None:
+        message.thumbs_down = thumbs_down
+
+        # Log thumbs_down feedback
+        logger.warning(f"Thumbs down received for message ID {message_id}: {message.content}")
+
+        # Avoid similar responses in the same session
+        session_messages = db.exec(
+            select(Message).where(Message.session_id == message.session_id)
+        ).all()
+        for session_message in session_messages:
+            if message.content in session_message.content:
+                logger.info(f"Avoiding similar response: {session_message.content}")
+
+    db.commit()
+    return {"message": "Feedback recorded successfully"}
+

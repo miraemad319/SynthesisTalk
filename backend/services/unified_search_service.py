@@ -86,7 +86,6 @@ class SearchService:
         query: str, 
         session_id: int, 
         db: Session,
-        limit: int = 5
     ) -> Dict[str, Any]:
         """
         Search through uploaded documents
@@ -95,8 +94,7 @@ class SearchService:
             results = await search_documents(
                 query=query,
                 session_id=session_id,
-                db=db,
-                limit=limit
+                db=db
             )
             
             return {
@@ -125,7 +123,6 @@ class SearchService:
         include_documents: bool = True,
         web_provider: str = "auto",
         web_results_limit: int = 5,
-        doc_results_limit: int = 3
     ) -> Dict[str, Any]:
         """
         Perform combined search across web and documents
@@ -143,7 +140,7 @@ class SearchService:
         
         # Document search
         if include_documents and session_id and db:
-            doc_result = await self.document_search(query, session_id, db, doc_results_limit)
+            doc_result = await self.document_search(query, session_id, db)
             if doc_result["success"]:
                 results["document_results"] = doc_result["results"]
         

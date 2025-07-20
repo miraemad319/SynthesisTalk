@@ -16,7 +16,8 @@ class Message(SQLModel, table=True):
     sender: str
     content: str
     timestamp: datetime = Field(default_factory=datetime.utcnow)
-
+    thumbs_up: Optional[bool] = None  # User feedback: thumbs up
+    thumbs_down: Optional[bool] = None  # User feedback: thumbs down
     embedding: Optional["Embedding"] = Relationship(back_populates="messages")
 
 class Document(SQLModel, table=True):
@@ -25,15 +26,7 @@ class Document(SQLModel, table=True):
     embedding_id: Optional[int] = Field(default=None, foreign_key="embedding.id")
     filename: str
     text: str
-
     embedding: Optional["Embedding"] = Relationship(back_populates="documents")
-
-class Summary(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    session_id: int = Field(foreign_key="session.id")
-    summary_type: str  # e.g. "bullet", "paragraph", "insight"
-    text: str
-    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class Embedding(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -41,6 +34,5 @@ class Embedding(SQLModel, table=True):
     text: str
     embedding: list[float] = Field(sa_column=Column(Vector(384)))  # Dimension for all-MiniLM-L6-v2 model
     created_at: datetime = Field(default_factory=datetime.utcnow)
-
     messages: list[Message] = Relationship(back_populates="embedding")
     documents: list[Document] = Relationship(back_populates="embedding")

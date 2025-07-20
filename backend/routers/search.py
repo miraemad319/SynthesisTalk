@@ -52,13 +52,11 @@ async def document_search(request: DocumentSearchRequest, db: Session = Depends(
         result = await search_service.document_search(
             query=request.query,
             session_id=request.session_id,
-            db=db,
-            limit=request.limit
+            db=db
         )
         
         return {
             "success": result["success"],
-            "query": request.query,
             "session_id": request.session_id,
             "results": result["results"],
             "metadata": result["metadata"]
@@ -90,7 +88,6 @@ async def combined_search(request: CombinedSearchRequest, db: Session = Depends(
                 query=request.query,
                 session_id=request.session_id,
                 db=db,
-                limit=request.doc_results_limit
             )
 
         # Combine results

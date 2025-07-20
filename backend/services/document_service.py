@@ -8,10 +8,24 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 def save_document(db: Session, session_id: int, filename: str, text: str) -> Document:
-    doc = Document(session_id=session_id, filename=filename, text=text)
+    # Generate embedding for the document text
+    embedding_vector = generate_embedding(text)
+    if not embedding_vector:
+        logger.warning("Failed to generate embedding for document")
+        raise ValueError("Embedding generation failed")
+
+    # Create and save the embedding
+    embedding = Embedding(session_id=session_id, text=text, embedding=embedding_vector)
+    db.add(embedding)
+    db.commit()
+    db.refresh(embedding)
+
+    # Create and save the document with the embedding
+    doc = Document(session_id=session_id, filename=filename, text=text, embedding_id=embedding.id)
     db.add(doc)
     db.commit()
     db.refresh(doc)
+
     return doc
 
 def get_documents_text(db: Session, session_id: int) -> str:
@@ -39,6 +53,7 @@ async def search_documents(query: str, session_id: int, db: Session = None, top_
         documents = db.execute(statement).scalars().all()
         
         if not documents:
+            logger.info(f"No documents found for session_id: {session_id}")
             return []
         
         # Simple text-based search as fallback if no embeddings
@@ -46,6 +61,7 @@ async def search_documents(query: str, session_id: int, db: Session = None, top_
         for doc in documents:
             # Calculate simple text similarity (can be enhanced with embeddings)
             similarity_score = calculate_text_similarity(query.lower(), doc.text.lower())
+            logger.debug(f"Document ID: {doc.id}, Similarity Score: {similarity_score}")
             
             if similarity_score > 0.1:  # Threshold for relevance
                 # Extract relevant snippet
@@ -61,6 +77,7 @@ async def search_documents(query: str, session_id: int, db: Session = None, top_
         
         # Sort by similarity score and return top results
         results.sort(key=lambda x: x["similarity_score"], reverse=True)
+        logger.info(f"Total results found: {len(results)}")
         return results[:top_k]
         
     except Exception as e:
