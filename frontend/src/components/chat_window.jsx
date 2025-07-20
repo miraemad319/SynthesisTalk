@@ -1,21 +1,37 @@
-// chat_window.jsx in components folder
+import axios from "axios";
 import React, { useState, useEffect, useRef } from "react";
-import { Card, List, Typography, Input, Button } from "antd";
-import { SendOutlined, UserOutlined, RobotOutlined } from "@ant-design/icons";
+import { Card, List, Typography, Input, Button, Tooltip, Upload, message } from "antd";
+import { SendOutlined, LikeOutlined, DislikeOutlined, RedoOutlined, UploadOutlined } from "@ant-design/icons";
 import { sendMessage, fetchMessages } from "../api/chat";
+import { uploadPDF, fetchDocuments } from "../api/upload";
 
-export default function ChatWindow({ sessionId }) {
+export default function ChatWindow({ sessionId: propSessionId, currentDocument }) {
+  const [sessionId, setSessionId] = useState(propSessionId);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [typing, setTyping] = useState(false);
+  const [files, setFiles] = useState([]);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
-    if (!sessionId) return;
-    fetchMessages(sessionId).then(setMessages);
-    // Optionally poll for new messages every X seconds
-    // const interval = setInterval(() => fetchMessages(sessionId).then(setMessages), 5000);
-    // return () => clearInterval(interval);
+    if (!sessionId) {
+      const fetchCurrentSession = async () => {
+        try {
+          const response = await axios.get("/session/current");
+          setSessionId(response.data.session_id);
+        } catch (error) {
+          console.error("Error fetching current session:", error);
+        }
+      };
+      fetchCurrentSession();
+    }
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (sessionId) {
+      fetchMessages(sessionId).then(setMessages);
+    }
   }, [sessionId]);
 
   useEffect(() => {
@@ -26,114 +42,134 @@ export default function ChatWindow({ sessionId }) {
     if (input.trim() === "" || !sessionId) return;
     setLoading(true);
     try {
-      // Optimistically add user message
       const userMessage = { sender: "user", content: input.trim(), timestamp: new Date().toISOString() };
       setMessages((prev) => [...prev, userMessage]);
-      // Send message and get bot reply
+      setInput("");
+      setTyping(true);
       const res = await sendMessage(sessionId, input.trim());
       if (res && res.bot_message) {
         const botMessage = { sender: "assistant", content: res.bot_message, timestamp: new Date().toISOString() };
         setMessages((prev) => [...prev, botMessage]);
-      } else if (res && res.detail) {
-        // Show backend error as a bot message
-        const botMessage = { sender: "assistant", content: `Error: ${res.detail}`, timestamp: new Date().toISOString() };
-        setMessages((prev) => [...prev, botMessage]);
-      } else {
-        const botMessage = { sender: "assistant", content: "No response from server.", timestamp: new Date().toISOString() };
-        setMessages((prev) => [...prev, botMessage]);
       }
-      setInput("");
-    } catch (err) {
-      console.error("Failed to send message:", err);
-      const botMessage = { sender: "assistant", content: `Error: ${err.message || err.toString()}` };
-      setMessages((prev) => [...prev, botMessage]);
+    } catch (error) {
+      console.error("Error sending message:", error);
     } finally {
       setLoading(false);
+      setTyping(false);
+    }
+  };
+
+  const handleFeedback = (messageId, feedback) => {
+    console.log(`Feedback for message ${messageId}: ${feedback}`);
+  };
+
+  const handleRetry = (messageContent) => {
+    setInput(messageContent);
+  };
+
+  const handleFileChange = (info) => {
+    const allowedTypes = ["application/pdf", "text/plain"];
+    const newFiles = info.fileList
+      .map((f) => f.originFileObj)
+      .filter((f) => f && allowedTypes.includes(f.type));
+    setFiles(newFiles);
+  };
+
+  const handleUpload = async () => {
+    if (!files.length) {
+      message.warning("Please select valid file(s).");
+      return;
+    }
+
+    const formData = new FormData();
+    files.forEach((file) => {
+      formData.append("files", file);
+    });
+
+    try {
+      const response = await axios.post("/upload", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      if (response.status === 200) {
+        message.success("Files uploaded successfully.");
+      } else {
+        message.error("Failed to upload files.");
+      }
+    } catch (error) {
+      console.error("Error uploading files:", error);
+      message.error("An error occurred during file upload.");
+    } finally {
+      setFiles([]);
     }
   };
 
   return (
-    <Card
-      style={{
-        borderRadius: 20,
-        background: 'linear-gradient(135deg, #e0f7fa 0%, #e6e6fa 100%)',
-        boxShadow: '0 4px 24px 0 rgba(180, 180, 255, 0.10)',
-        maxHeight: 600,
-        display: 'flex',
-        flexDirection: 'column',
-        flex: 1,
-      }}
-      bodyStyle={{ padding: 24, display: 'flex', flexDirection: 'column', height: 520 }}
-      title={<Typography.Title level={3} style={{ margin: 0, color: '#7c4dff', fontFamily: 'inherit' }}>Chat</Typography.Title>}
-    >
-      <div style={{ flex: 1, overflowY: 'auto', marginBottom: 16, padding: 8, background: 'rgba(230,230,250,0.5)', borderRadius: 14, border: '1px solid #b39ddb' }}>
-        {messages.length === 0 ? (
-          <Typography.Text type="secondary" italic>No messages yet.</Typography.Text>
-        ) : (
-          <List
-            dataSource={messages}
-            renderItem={(msg, i) => (
-              <List.Item
-                key={i}
+    <Card title="Chat" style={{ height: "500px", overflow: "hidden" }}>
+      <div style={{ height: "calc(100% - 100px)", overflowY: "scroll" }}>
+        <List
+          dataSource={messages}
+          renderItem={(item, index) => (
+            <List.Item
+              key={index}
+              style={{
+                display: "flex",
+                justifyContent: item.sender === "user" ? "flex-end" : "flex-start",
+                padding: "8px 0",
+              }}
+            >
+              <div
                 style={{
-                  display: 'flex',
-                  justifyContent: msg.sender === 'user' ? 'flex-end' : 'flex-start',
-                  border: 'none',
-                  padding: 0,
-                  background: 'none',
+                  maxWidth: "70%",
+                  padding: "10px 16px",
+                  borderRadius: 12,
+                  fontSize: 14,
+                  lineHeight: "1.5",
+                  background: item.sender === "user" ? "#e6f7ff" : "#f5f5f5",
+                  color: item.sender === "user" ? "#0050b3" : "#333",
+                  boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
                 }}
               >
-                <div
-                  style={{
-                    background: msg.sender === 'user' ? 'rgba(124,77,255,0.10)' : 'rgba(255,255,255,0.95)',
-                    color: msg.sender === 'user' ? '#7c4dff' : '#333',
-                    alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start',
-                    borderRadius: 14,
-                    padding: '10px 16px',
-                    maxWidth: '80%',
-                    fontWeight: 500,
-                    boxShadow: '0 1px 4px 0 rgba(180,180,255,0.06)',
-                    marginBottom: 4,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                  }}
-                >
-                  {msg.sender === 'user' ? <UserOutlined style={{ color: '#7c4dff' }} /> : <RobotOutlined style={{ color: '#64b5f6' }} />}
-                  <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
-                </div>
-              </List.Item>
-            )}
-          />
-        )}
+                {item.content}
+              </div>
+            </List.Item>
+          )}
+        />
+        {typing && <Typography.Text italic>Assistant is typing...</Typography.Text>}
         <div ref={messagesEndRef} />
       </div>
-      <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+      <div style={{ display: "flex", marginTop: 10, gap: 8 }}>
+        <Upload
+          multiple
+          beforeUpload={() => false}
+          onChange={handleFileChange}
+          fileList={files.map((file) => ({ name: file.name }))}
+          showUploadList={false}
+        >
+          <Button icon={<UploadOutlined />} onClick={handleUpload} />
+        </Upload>
         <Input
           value={input}
-          onChange={e => setInput(e.target.value)}
-          placeholder="Type your message..."
+          onChange={(e) => setInput(e.target.value)}
           onPressEnter={handleSend}
+          placeholder="Type your message..."
           disabled={loading}
-          style={{ borderRadius: 12, background: '#fff', flex: 1 }}
+          style={{ flex: 1 }}
         />
         <Button
           type="primary"
           icon={<SendOutlined />}
           onClick={handleSend}
           loading={loading}
-          disabled={loading || input.trim() === ""}
-          style={{
-            borderRadius: 12,
-            fontWeight: 600,
-            background: 'linear-gradient(90deg, #7c4dff 0%, #64b5f6 100%)',
-            border: 'none',
-            minWidth: 90,
-          }}
-        >
-          Send
-        </Button>
+        />
       </div>
+      {currentDocument && (
+        <Typography.Text type="secondary" style={{ marginTop: 10 }}>
+          Referencing document: {currentDocument}
+        </Typography.Text>
+      )}
     </Card>
   );
 }

@@ -10,8 +10,10 @@ export async function fetchMessages(sessionId) {
 // Send a chat message for a session
 export async function sendMessage(sessionId, userMessage) {
   const response = await axios.post("/session/chat", {
-    session_id: sessionId,
     user_message: userMessage,
+    session_id: sessionId,
+    enable_web_search: true,
+    enable_document_search: true,
   });
   return response.data;
 }

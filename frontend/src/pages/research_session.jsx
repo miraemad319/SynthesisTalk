@@ -1,7 +1,4 @@
-// research_session.jsx in pages folder
-
 import React, { useState, useEffect } from "react";
-import UploadPanel from "../components/upload_panel";
 import SessionList from "../components/session_list";
 import ChatWindow from "../components/chat_window";
 import { fetchSessions, createSession } from "../api/session";
@@ -106,10 +103,6 @@ export default function ResearchSession() {
                     setNewMessage={setNewMessage}
                     sessionId={currentSession.id}
                   />
-                </Col>
-                {/* Upload Panel */}
-                <Col xs={24} xl={8} style={{ height: '100%' }}>
-                  <UploadPanel sessionId={currentSession.id} />
                 </Col>
               </Row>
             ) : (

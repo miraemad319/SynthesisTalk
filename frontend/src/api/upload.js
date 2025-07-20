@@ -17,3 +17,8 @@ export async function uploadPDF(file, sessionId) {
 
   return response.data;
 }
+
+export async function fetchDocuments(sessionId) {
+  const response = await axios.get(`/documents?session_id=${sessionId}`);
+  return response.data;
+}
