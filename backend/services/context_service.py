@@ -1,26 +1,36 @@
 """
 Context Service for building comprehensive context from multiple sources
+Integrated with advanced reasoning capabilities
 """
 import logging
 from typing import List, Dict, Any, Optional
 from sqlmodel import Session, select
 from sqlalchemy.sql import text
 from models.db_models import Message, Document
+from models.api_models import ReasoningType, QuestionType
 from services.document_service import search_documents, get_documents_by_session, get_document_by_id
 from services.web_search import search_web
 from services.embedding_service import generate_embedding
 from services.feedback_analysis import analyze_feedback
+from services.reasoning_service import (
+    chain_of_thought_reasoning, 
+    react_reasoning, 
+    hybrid_reasoning,
+    classify_question
+)
 from utils.text_utils import trim_text_to_token_limit
 import asyncio
 
 logger = logging.getLogger(__name__)
 
 class ContextBuilder:
-    """Builds context from multiple sources for LLM conversations"""
+    """Builds context from multiple sources for LLM conversations with advanced reasoning"""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, enable_reasoning: bool = True, reasoning_type: ReasoningType = ReasoningType.HYBRID):
         self.db = db
         self.max_context_tokens = 8000  # Adjust based on your model's context limit
+        self.enable_reasoning = enable_reasoning
+        self.reasoning_type = reasoning_type
     
     async def build_context(
         self,
@@ -29,17 +39,31 @@ class ContextBuilder:
         include_web_search: bool = True,
         include_documents: bool = True,
         include_conversation_history: bool = True,
-        max_history_messages: int = 10
+        max_history_messages: int = 10,
+        reasoning_type: Optional[ReasoningType] = None
     ) -> Dict[str, Any]:
         """
-        Build comprehensive context from all available sources
+        Build comprehensive context from all available sources with advanced reasoning
         """
+        # Use provided reasoning type or fall back to instance default
+        if reasoning_type is None:
+            reasoning_type = self.reasoning_type
+            
         context_parts = []
         metadata = {
             "sources_used": [],
             "token_usage": {},
-            "search_results": {}
+            "search_results": {},
+            "reasoning_applied": self.enable_reasoning,
+            "reasoning_type": reasoning_type.value if reasoning_type else None,
+            "question_type": None
         }
+        
+        # Classify the question type for reasoning
+        question_type = None
+        if self.enable_reasoning:
+            question_type = classify_question(user_message)
+            metadata["question_type"] = question_type.value
         
         try:
             # 1. Get conversation history
@@ -97,6 +121,17 @@ class ContextBuilder:
             # 5. Build final context within token limits
             final_context = self._combine_context_parts(context_parts, user_message)
             
+            # 6. Apply reasoning if enabled
+            reasoning_output = None
+            if self.enable_reasoning and reasoning_type:
+                reasoning_output = self._apply_reasoning(
+                    final_context, user_message, reasoning_type, question_type
+                )
+                metadata["reasoning_output"] = "Applied"
+                # Store the actual reasoning text
+                metadata["reasoning_text"] = reasoning_output
+
+            
             # Log the final context and metadata
             logger.info("Final context built:")
             logger.info(final_context)
@@ -105,16 +140,20 @@ class ContextBuilder:
 
             return {
                 "context": final_context,
+                "reasoning": reasoning_output,
                 "metadata": metadata,
-                "user_message": user_message
+                "user_message": user_message,
+                "question_type": question_type
             }
             
         except Exception as e:
             logger.error(f"Failed to build comprehensive context: {e}")
             return {
                 "context": f"I'll help you with: {user_message}",
+                "reasoning": None,
                 "metadata": {"sources_used": [], "error": str(e)},
-                "user_message": user_message
+                "user_message": user_message,
+                "question_type": None
             }
     
     async def _get_conversation_history(self, session_id: int, max_messages: int) -> str:
@@ -265,6 +304,61 @@ class ContextBuilder:
                 break
         
         return "\n\n".join(combined_context)
+    
+    def _apply_reasoning(
+        self, 
+        context: str, 
+        user_message: str, 
+        reasoning_type: ReasoningType,
+        question_type: Optional[QuestionType] = None
+    ) -> str:
+        """Apply selected reasoning technique to the context and user message"""
+        try:
+            available_tools = ["web_search", "document_search", "calculation", "analysis"]
+            
+            logger.info(f"Applying reasoning type: {reasoning_type.value}")
+
+            if reasoning_type == ReasoningType.CHAIN_OF_THOUGHT:
+                return chain_of_thought_reasoning(context, user_message, question_type)
+            elif reasoning_type == ReasoningType.REACT:
+                return react_reasoning(context, user_message, available_tools)
+            elif reasoning_type == ReasoningType.HYBRID:
+                return hybrid_reasoning(context, user_message, available_tools)
+            else:
+                logger.warning(f"Unknown reasoning type: {reasoning_type}")
+                return chain_of_thought_reasoning(context, user_message, question_type)
+            
+            logger.info(f"Reasoning result generated: {reasoning_result[:200]}...")  # Log first 200 chars
+            return reasoning_result
+                
+        except Exception as e:
+            logger.error(f"Failed to apply reasoning: {e}")
+            return f"Reasoning Error: {str(e)}"
+
+# Enhanced functions with reasoning support
+async def build_context_with_reasoning(
+    db: Session, 
+    session_id: int, 
+    user_message: str,
+    reasoning_type: ReasoningType = ReasoningType.HYBRID
+) -> Dict[str, Any]:
+    """
+    Build comprehensive context with reasoning output
+    """
+    builder = ContextBuilder(db, enable_reasoning=True, reasoning_type=reasoning_type)
+    return await builder.build_context(session_id, user_message)
+
+async def build_context_with_cot(db: Session, session_id: int, user_message: str) -> Dict[str, Any]:
+    """Build context with Chain of Thought reasoning"""
+    return await build_context_with_reasoning(db, session_id, user_message, ReasoningType.CHAIN_OF_THOUGHT)
+
+async def build_context_with_react(db: Session, session_id: int, user_message: str) -> Dict[str, Any]:
+    """Build context with ReAct reasoning"""
+    return await build_context_with_reasoning(db, session_id, user_message, ReasoningType.REACT)
+
+async def build_context_with_hybrid(db: Session, session_id: int, user_message: str) -> Dict[str, Any]:
+    """Build context with Hybrid reasoning"""
+    return await build_context_with_reasoning(db, session_id, user_message, ReasoningType.HYBRID)
 
 # Legacy functions for backward compatibility
 def retrieve_context(db: Session, session_id: int, query_embedding: list[float]) -> str:
@@ -300,28 +394,42 @@ def get_recent_messages(db: Session, session_id: int, limit=10) -> list[Message]
     results = db.execute(statement).scalars().all()
     return list(reversed(results))  # Oldest first
 
-async def build_context(db: Session, session_id: int, user_message: str) -> str:
+async def build_context(
+    db: Session, 
+    session_id: int, 
+    user_message: str, 
+    enable_reasoning: bool = True,
+    reasoning_type: ReasoningType = ReasoningType.HYBRID
+) -> str:
     """
-    Build comprehensive context (enhanced version)
+    Build comprehensive context (enhanced version with reasoning)
     """
-    builder = ContextBuilder(db)
+    builder = ContextBuilder(db, enable_reasoning, reasoning_type)
     result = await builder.build_context(session_id, user_message)
     return result["context"]
 
-def build_prompt(context: str, user_message: str, system_prompt: str = None, db: Session = None) -> str:
+def build_prompt(
+    context: str, 
+    user_message: str, 
+    system_prompt: str = None, 
+    db: Session = None,
+    reasoning_output: str = None
+) -> str:
     """
-    Build the final prompt for the LLM, incorporating feedback patterns and system guidance.
+    Build the final prompt for the LLM, incorporating feedback patterns, system guidance, and reasoning.
     """
     if system_prompt is None:
-        system_prompt = """You are SynthesisTalk, an intelligent research assistant. You help users by:
+        system_prompt = """You are SynthesisTalk, an intelligent research assistant with advanced reasoning capabilities. You help users by:
 
 1. 📚 Analyzing uploaded documents and extracting key insights
 2. 🔍 Searching the web for current information when needed
 3. 💡 Synthesizing information from multiple sources
-4. 🎯 Providing clear, well-structured responses
-5. 🔗 Maintaining context across conversations
+4. 🧠 Applying structured reasoning (Chain of Thought, ReAct, Hybrid approaches)
+5. 🎯 Providing clear, well-structured responses
+6. 🔗 Maintaining context across conversations
 
 When responding:
+- Use the provided reasoning analysis to structure your thinking
 - Be concise but comprehensive
 - Cite sources when referencing specific information
 - Ask clarifying questions if the request is ambiguous
@@ -341,6 +449,10 @@ When responding:
 
     if context and context.strip():
         prompt_parts.append(f"CONTEXT:\n{context}")
+    
+    # Add reasoning output if available
+    if reasoning_output and reasoning_output.strip():
+        prompt_parts.append(f"REASONING ANALYSIS:\n{reasoning_output}")
 
     prompt_parts.append(f"USER MESSAGE: {user_message}")
 
@@ -355,5 +467,3 @@ When responding:
     prompt_parts.append("RESPONSE:")
 
     return "\n\n".join(prompt_parts)
-
-

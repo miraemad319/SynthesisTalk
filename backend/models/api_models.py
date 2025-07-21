@@ -4,6 +4,7 @@ Common request/response models to eliminate redundancy across routers
 """
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
+from enum import Enum
 
 # Base Models
 class BaseRequest(BaseModel):
@@ -44,6 +45,19 @@ class CombinedSearchRequest(BaseSearchRequest):
     web_results_limit: Optional[int] = 5
     search_provider: Optional[str] = "auto"
 
+# Reasoning Models
+class ReasoningType(Enum):
+    CHAIN_OF_THOUGHT = "cot"
+    REACT = "react"
+    HYBRID = "hybrid"
+
+class QuestionType(Enum):
+    FACTUAL = "factual"
+    ANALYTICAL = "analytical"
+    CREATIVE = "creative"
+    PROCEDURAL = "procedural"
+    COMPARATIVE = "comparative"
+
 # Chat Models
 class ChatRequest(BaseRequest):
     """Chat request model"""
@@ -51,12 +65,16 @@ class ChatRequest(BaseRequest):
     session_id: int
     enable_web_search: bool = True
     enable_document_search: bool = True
+    enable_reasoning: bool = False
+    reasoning_type: Optional[ReasoningType] = ReasoningType.HYBRID
 
 class ChatResponse(BaseResponse):
     """Chat response model"""
     response: str
     session_id: int
     tool_calls_made: List[str] = []
+    reasoning_output: Optional[str] = None
+    question_type: Optional[str] = None
     metadata: Dict[str, Any] = {}
 
 # Common Metadata Models
@@ -124,4 +142,3 @@ class StructuredSummaryRequest(BaseRequest):
     session_id: int
     text: Optional[str] = None # Text to summarize
     format: str = Field(..., pattern="^(bullet|paragraph|insight)$", description="Summary format: 'bullet', 'paragraph', 'insight'")
-

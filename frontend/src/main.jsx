@@ -1,4 +1,3 @@
-// main.jsx in src folder
 import 'antd/dist/reset.css'; // For Ant Design v5+
 import React from 'react';
 import ReactDOM from 'react-dom/client';

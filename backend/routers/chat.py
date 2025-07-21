@@ -10,7 +10,7 @@ from models.db_models import Message, Document, Session as ResearchSession
 from services.db_session import get_session
 from services.embedding_service import generate_embedding, store_embedding
 from services.document_service import save_document, get_documents_text
-from services.context_service import ContextBuilder, build_prompt
+from services.context_service import ContextBuilder, build_prompt, build_context_with_reasoning
 from services.feedback_analysis import analyze_feedback
 from services.summarize_service import generate_summary
 from services.unified_search_service import search_service
@@ -18,7 +18,7 @@ from settings.settings import settings
 
 from utils.text_utils import trim_text_to_token_limit
 from llm_providers.llm_manager import get_llm_response
-from models.api_models import ChatRequest, ChatResponse, StructuredSummaryRequest
+from models.api_models import ChatRequest, ChatResponse, StructuredSummaryRequest, ReasoningType
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -51,9 +51,13 @@ def get_messages(session_id: int, db: Session = Depends(get_session)):
 @router.post("/session/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)):
     """
-    Handle user messages and generate bot responses.
+    Handle user messages and generate bot responses with optional reasoning.
     """
     try:
+        # Default reasoning_type to 'auto' (Hybrid) if enable_reasoning is True and reasoning_type is not provided
+        if request.enable_reasoning and not request.reasoning_type:
+            request.reasoning_type = ReasoningType.HYBRID
+
         logger.info("Storing user message...")
         # Store user message
         user_message = Message(
@@ -92,6 +96,7 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
                     store_embedding(bot_message.id, embedding_vector, db)
 
                 return ChatResponse(
+                    success=True,
                     response=summary_text,
                     session_id=request.session_id,
                     tool_calls_made=[],
@@ -102,18 +107,32 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
                 raise HTTPException(status_code=500, detail="Failed to process summarize request")
 
         logger.info("Building context...")
-        # Build context
-        context_builder = ContextBuilder(db)
-        context_result = await context_builder.build_context(
-            session_id=request.session_id,
-            user_message=request.message,
-            include_web_search=request.enable_web_search,
-            include_documents=request.enable_document_search
-        )
+        # Build context with optional reasoning
+        if request.enable_reasoning:
+            logger.info(f"Using reasoning type: {request.reasoning_type.value}")
+            context_result = await build_context_with_reasoning(
+                db=db,
+                session_id=request.session_id,
+                user_message=request.message,
+                reasoning_type=request.reasoning_type
+            )
+        else:
+            context_builder = ContextBuilder(db, enable_reasoning=False)
+            context_result = await context_builder.build_context(
+                session_id=request.session_id,
+                user_message=request.message,
+                include_web_search=request.enable_web_search,
+                include_documents=request.enable_document_search
+            )
 
         logger.info("Generating prompt...")
-        # Generate prompt
-        prompt = build_prompt(context_result["context"], request.message, db=db)
+        # Generate prompt with optional reasoning
+        prompt = build_prompt(
+            context=context_result["context"], 
+            user_message=request.message, 
+            db=db,
+            reasoning_output=context_result.get("reasoning")
+        )
 
         logger.info("Getting LLM response...")
         try:
@@ -181,11 +200,18 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
             response=bot_message_content,
             session_id=request.session_id,
             tool_calls_made=context_result["metadata"].get("tool_calls", []),
+            reasoning_output=context_result.get("reasoning"),  # This should contain the actual reasoning text
+            question_type=context_result.get("question_type").value if context_result.get("question_type") else None,  # Fixed the .get("value") issue
             metadata={
                 "search_results": search_results,
-                "sources_used": sources_used
+                "sources_used": sources_used,
+                "reasoning_applied": request.enable_reasoning,
+                "reasoning_type": request.reasoning_type.value if request.enable_reasoning else None,
             }
         )
+        
+        logger.info(f"Reasoning result generated: {reasoning_result[:200]}...")  # Log first 200 chars
+        return reasoning_result
 
     except Exception as e:
         logger.error(f"Error in chat endpoint: {e}")
@@ -217,5 +243,4 @@ def provide_feedback(message_id: int, thumbs_up: Optional[bool] = None, thumbs_d
                 logger.info(f"Avoiding similar response: {session_message.content}")
 
     db.commit()
-    return {"message": "Feedback recorded successfully"}
-
+    return {"message": "Feedback recorded successfully"}
