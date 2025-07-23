@@ -18,6 +18,7 @@ from services.reasoning_service import (
     hybrid_reasoning,
     classify_question
 )
+from services.visualization_service import generate_insights
 from utils.text_utils import trim_text_to_token_limit
 import asyncio
 
@@ -36,9 +37,10 @@ class ContextBuilder:
         self,
         session_id: int,
         user_message: str,
-        include_web_search: bool = True,
-        include_documents: bool = True,
+        include_web_search: bool = False,
+        include_documents: bool = False,
         include_conversation_history: bool = True,
+        include_insights: bool = False,
         max_history_messages: int = 10,
         reasoning_type: Optional[ReasoningType] = None
     ) -> Dict[str, Any]:
@@ -48,7 +50,8 @@ class ContextBuilder:
         # Use provided reasoning type or fall back to instance default
         if reasoning_type is None:
             reasoning_type = self.reasoning_type
-            
+        
+                    
         context_parts = []
         metadata = {
             "sources_used": [],
@@ -56,6 +59,7 @@ class ContextBuilder:
             "search_results": {},
             "reasoning_applied": self.enable_reasoning,
             "reasoning_type": reasoning_type.value if reasoning_type else None,
+            "insights_enabled": include_insights,
             "question_type": None
         }
         
@@ -131,6 +135,16 @@ class ContextBuilder:
                 # Store the actual reasoning text
                 metadata["reasoning_text"] = reasoning_output
 
+            # 7. Generate insights analysis if enabled
+            insights_analysis = None
+            if include_insights:
+                insights_analysis = self._generate_insights_analysis(
+                    context_parts, user_message, final_context
+                )
+                metadata["insights_analysis"] = "Applied"
+            else:
+                metadata["insights_analysis"] = "Disabled"
+
             
             # Log the final context and metadata
             logger.info("Final context built:")
@@ -151,6 +165,7 @@ class ContextBuilder:
             return {
                 "context": f"I'll help you with: {user_message}",
                 "reasoning": None,
+                "insights": None,
                 "metadata": {"sources_used": [], "error": str(e)},
                 "user_message": user_message,
                 "question_type": None
@@ -335,18 +350,52 @@ class ContextBuilder:
             logger.error(f"Failed to apply reasoning: {e}")
             return f"Reasoning Error: {str(e)}"
 
+    def _generate_insights_analysis(
+    self, 
+    context_parts: List[Dict[str, Any]], 
+    user_message: str, 
+    final_context: str
+    ) -> Dict[str, Any]:
+        """Generate comprehensive insights from collected data."""
+        try:
+            # Prepare data for insight generation
+            insight_data = []
+            
+            for part in context_parts:
+                insight_data.append({
+                    "type": part["type"],
+                    "content": part["content"],
+                    "source": part["type"]
+                })
+            
+            # Generate insights
+            insights = generate_insights(insight_data, final_context, user_message)
+            
+            logger.info(f"Generated insights with confidence: {insights.get('confidence_score', 0)}")
+            return insights
+            
+        except Exception as e:
+            logger.error(f"Failed to generate insights: {e}")
+            return {
+                "summary": "Insights generation unavailable",
+                "error": str(e)
+            }
+
 # Enhanced functions with reasoning support
 async def build_context_with_reasoning(
     db: Session, 
     session_id: int, 
     user_message: str,
-    reasoning_type: ReasoningType = ReasoningType.HYBRID
+    reasoning_type: ReasoningType = ReasoningType.HYBRID,
 ) -> Dict[str, Any]:
     """
     Build comprehensive context with reasoning output
     """
     builder = ContextBuilder(db, enable_reasoning=True, reasoning_type=reasoning_type)
-    return await builder.build_context(session_id, user_message)
+    return await builder.build_context(
+        session_id,
+        user_message
+    )
 
 async def build_context_with_cot(db: Session, session_id: int, user_message: str) -> Dict[str, Any]:
     """Build context with Chain of Thought reasoning"""
@@ -399,13 +448,27 @@ async def build_context(
     session_id: int, 
     user_message: str, 
     enable_reasoning: bool = True,
-    reasoning_type: ReasoningType = ReasoningType.HYBRID
+    reasoning_type: ReasoningType = ReasoningType.HYBRID,
+    include_insights: bool = False,
+    include_web_search: bool = False,
+    include_documents: bool = False
 ) -> str:
     """
     Build comprehensive context (enhanced version with reasoning)
     """
     builder = ContextBuilder(db, enable_reasoning, reasoning_type)
-    result = await builder.build_context(session_id, user_message)
+    result = await builder.build_context(
+        session_id,
+        user_message,
+        include_web_search=include_web_search,
+        include_documents=include_documents,
+        include_insights=include_insights
+    )
+    # Log insights if generated
+    if include_insights and "insights" in result and result["insights"]:
+        insights = result["insights"]
+        logger.info(f"Insights summary: {insights.get('summary', 'No summary available')}")
+    
     return result["context"]
 
 def build_prompt(

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from services.db_session import create_db_and_tables
-from routers import upload, session, chat, documents, search, summary
+from routers import upload, session, chat, documents, summary, export
 
 app = FastAPI(
     title="SynthesisTalk API",
@@ -29,6 +29,6 @@ app.include_router(session.router)
 app.include_router(upload.router)
 app.include_router(chat.router)
 app.include_router(documents.router)
-app.include_router(search.router)
 app.include_router(summary.router)
-# app.include_router(export.router)
+app.include_router(export.router)
+# app.include_router(search.router)

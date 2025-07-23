@@ -14,6 +14,7 @@ from services.context_service import ContextBuilder, build_prompt, build_context
 from services.feedback_analysis import analyze_feedback
 from services.summarize_service import generate_summary
 from services.unified_search_service import search_service
+from services.visualization_service import generate_insights
 from settings.settings import settings
 
 from utils.text_utils import trim_text_to_token_limit
@@ -122,8 +123,45 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
                 session_id=request.session_id,
                 user_message=request.message,
                 include_web_search=request.enable_web_search,
-                include_documents=request.enable_document_search
+                include_documents=request.enable_document_search,
+                include_insights=request.enable_insights
             )
+
+        # Generate insights if enabled
+        insights_data = None
+        visualizations = []
+        if request.enable_insights:
+            logger.info("Generating insights...")
+            try:
+                # Prepare data for insights generation
+                insight_data = []
+                
+                # Add context data for insights
+                if context_result.get("context"):
+                    insight_data.append({
+                        "type": "context",
+                        "content": context_result["context"],
+                        "source": "research_context"
+                    })
+                
+                # Filter context to include only relevant parts for the current user message
+                filtered_context = context_result.get("context", "").split("\n\n")[-1]  # Example: Use only the last part of the context
+                
+                # Generate insights
+                insights_result = generate_insights(
+                    data=insight_data,
+                    context=filtered_context,
+                    user_message=request.message
+                )
+                
+                insights_data = insights_result
+                visualizations = insights_result.get("visualizations", [])
+                
+                logger.info(f"Generated insights with confidence: {insights_result.get('confidence_score', 0)}")
+                
+            except Exception as e:
+                logger.error(f"Error generating insights: {e}")
+                insights_data = {"error": f"Failed to generate insights: {str(e)}"}
 
         logger.info("Generating prompt...")
         # Generate prompt with optional reasoning
@@ -201,7 +239,9 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
             session_id=request.session_id,
             tool_calls_made=context_result["metadata"].get("tool_calls", []),
             reasoning_output=context_result.get("reasoning"),  # This should contain the actual reasoning text
-            question_type=context_result.get("question_type").value if context_result.get("question_type") else None,  # Fixed the .get("value") issue
+            question_type=context_result.get("question_type").value if context_result.get("question_type") else None,
+            insights=insights_data,
+            visualizations=visualizations, 
             metadata={
                 "search_results": search_results,
                 "sources_used": sources_used,
