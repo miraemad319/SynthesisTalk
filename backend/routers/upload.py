@@ -4,8 +4,11 @@ from services.db_session import get_session
 from services.extractor_service import extract_text_from_pdf, extract_text_from_txt, extract_text_from_docx, extract_text_from_md, extract_text_from_rtf
 from services.document_service import save_document
 from typing import List
+import logging
 
 router = APIRouter()
+
+logger = logging.getLogger("upload_logger")
 
 ALLOWED_EXTENSIONS = {".pdf", ".txt", ".docx", ".md", ".rtf"}  # Added Markdown (.md) and Rich Text Format (.rtf)
 

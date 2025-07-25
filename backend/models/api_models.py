@@ -63,9 +63,10 @@ class ChatRequest(BaseRequest):
     """Chat request model"""
     message: str
     session_id: int
-    enable_web_search: bool = True
-    enable_document_search: bool = True
+    enable_web_search: bool = False
+    enable_document_search: bool = False
     enable_reasoning: bool = False
+    enable_insights: bool = False
     reasoning_type: Optional[ReasoningType] = ReasoningType.HYBRID
 
 class ChatResponse(BaseResponse):
@@ -75,6 +76,8 @@ class ChatResponse(BaseResponse):
     tool_calls_made: List[str] = []
     reasoning_output: Optional[str] = None
     question_type: Optional[str] = None
+    insights: Optional[Dict[str, Any]] = None
+    visualizations: Optional[List[Dict[str, Any]]] = None
     metadata: Dict[str, Any] = {}
 
 # Common Metadata Models
@@ -104,18 +107,6 @@ class ProvidersResponse(BaseResponse):
     providers: Dict[str, ProviderInfo]
     recommended: str
     auto_selection_order: List[str]
-
-# Tool Models
-class ToolExecutionRequest(BaseRequest):
-    """Tool execution request"""
-    tool_name: str
-    parameters: Dict[str, Any]
-
-class ToolExecutionResponse(BaseResponse):
-    """Tool execution response"""
-    tool_name: str
-    result: Any
-    execution_time: Optional[float] = None
 
 # Session Models
 class SessionRequest(BaseRequest):
