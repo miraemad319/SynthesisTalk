@@ -1,6 +1,39 @@
 from fpdf import FPDF
 from docx import Document
 from typing import Dict, Any
+import unicodedata
+
+def _clean_text_for_pdf(text: str) -> str:
+    """Clean text to remove characters that can't be encoded in Latin-1."""
+    if not text:
+        return ""
+    
+    # Replace common Unicode characters with ASCII equivalents
+    replacements = {
+        '↔': '<->',
+        '→': '->',
+        '←': '<-',
+        '…': '...',
+        '"': '"',
+        '"': '"',
+        ''': "'",
+        ''': "'",
+        '–': '-',
+        '—': '--'
+    }
+    
+    for unicode_char, ascii_char in replacements.items():
+        text = text.replace(unicode_char, ascii_char)
+    
+    # Remove any remaining non-Latin-1 characters
+    try:
+        text.encode('latin-1')
+        return text
+    except UnicodeEncodeError:
+        # If there are still problematic characters, normalize and filter
+        normalized = unicodedata.normalize('NFKD', text)
+        ascii_text = ''.join(c for c in normalized if ord(c) < 256)
+        return ascii_text
 
 def export_findings(insights_report: Dict[str, Any], file_path: str, format: str = "pdf") -> None:
     """
@@ -32,7 +65,8 @@ def _export_to_pdf(insights_report: Dict[str, Any], file_path: str) -> None:
 
     # Add summary
     pdf.set_font("Arial", size=12)
-    pdf.multi_cell(0, 10, txt=f"Summary:\n{insights_report.get('summary', '')}")
+    summary_text = _clean_text_for_pdf(insights_report.get('summary', ''))
+    pdf.multi_cell(0, 10, txt=f"Summary:\n{summary_text}")
     pdf.ln(5)
 
     # Add key patterns
@@ -40,7 +74,8 @@ def _export_to_pdf(insights_report: Dict[str, Any], file_path: str) -> None:
     pdf.cell(0, 10, txt="Key Patterns:", ln=True)
     pdf.set_font("Arial", size=12)
     for pattern in insights_report.get("key_patterns", []):
-        pdf.cell(0, 10, txt=f"- {pattern['term']} (Frequency: {pattern['frequency']})", ln=True)
+        pattern_text = _clean_text_for_pdf(f"- {pattern['term']} (Frequency: {pattern['frequency']})")
+        pdf.cell(0, 10, txt=pattern_text, ln=True)
     pdf.ln(5)
 
     # Add trends
@@ -48,7 +83,8 @@ def _export_to_pdf(insights_report: Dict[str, Any], file_path: str) -> None:
     pdf.cell(0, 10, txt="Trends:", ln=True)
     pdf.set_font("Arial", size=12)
     for trend in insights_report.get("trends", []):
-        pdf.cell(0, 10, txt=f"- {trend['type'].capitalize()} ({trend['indicator']})", ln=True)
+        trend_text = _clean_text_for_pdf(f"- {trend['type'].capitalize()} ({trend['indicator']})")
+        pdf.cell(0, 10, txt=trend_text, ln=True)
     pdf.ln(5)
 
     # Add relationships
@@ -56,7 +92,9 @@ def _export_to_pdf(insights_report: Dict[str, Any], file_path: str) -> None:
     pdf.cell(0, 10, txt="Relationships:", ln=True)
     pdf.set_font("Arial", size=12)
     for relationship in insights_report.get("relationships", []):
-        pdf.cell(0, 10, txt=f"- {relationship['term1']} ↔ {relationship['term2']} (Strength: {relationship['strength']})", ln=True)
+        # Use ASCII arrow instead of Unicode
+        relationship_text = _clean_text_for_pdf(f"- {relationship['term1']} <-> {relationship['term2']} (Strength: {relationship['strength']})")
+        pdf.cell(0, 10, txt=relationship_text, ln=True)
     pdf.ln(5)
 
     # Save PDF
@@ -86,7 +124,8 @@ def _export_to_word(insights_report: Dict[str, Any], file_path: str) -> None:
     # Add relationships
     doc.add_heading("Relationships", level=2)
     for relationship in insights_report.get("relationships", []):
-        doc.add_paragraph(f"- {relationship['term1']} ↔ {relationship['term2']} (Strength: {relationship['strength']})")
+        # Use ASCII arrow for consistency
+        doc.add_paragraph(f"- {relationship['term1']} <-> {relationship['term2']} (Strength: {relationship['strength']})")
 
     # Save Word document
     doc.save(file_path)

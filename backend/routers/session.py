@@ -7,7 +7,8 @@ import logging
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+
+logger = logging.getLogger("session_logger")
 
 router = APIRouter()
 

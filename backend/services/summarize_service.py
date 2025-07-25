@@ -4,6 +4,7 @@ import asyncio
 from services.document_service import get_documents_text
 from llm_providers.llm_manager import get_llm_response
 from sqlmodel import Session
+from models.db_models import Message
 
 # Import extractor functions individually to handle potential import errors
 try:
@@ -30,6 +31,125 @@ try:
     from services.extractor_service import extract_text_from_rtf
 except ImportError:
     extract_text_from_rtf = None
+    
+def generate_message_summary(message_id: int, format: str, db: Session) -> str:
+    """
+    Generate a summary of a specific message by ID.
+    If the message is associated with documents, summarize the document content.
+    
+    Args:
+        message_id (int): The ID of the message to summarize.
+        format (str): The format of the summary ('bullet', 'paragraph', 'insight').
+        db (Session): Database session for fetching the message.
+    
+    Returns:
+        str: The generated summary.
+    
+    Raises:
+        ValueError: If message not found or invalid format.
+    """
+    from sqlmodel import select
+    from models.db_models import Document
+    
+    # Fetch the message from database
+    message = db.get(Message, message_id)
+    if not message:
+        raise ValueError(f"Message with ID {message_id} not found")
+    
+    # Validate format
+    valid_formats = {"bullet", "paragraph", "insight"}
+    if format not in valid_formats:
+        raise ValueError(f"Invalid format '{format}'. Valid formats are: {', '.join(valid_formats)}")
+    
+    # Check if the message has an embedding_id that links to a document
+    relevant_doc = None
+    
+    if message.embedding_id:
+        # Try to find a document with the same embedding_id
+        relevant_doc = db.exec(
+            select(Document).where(Document.embedding_id == message.embedding_id)
+        ).first()
+        
+        if relevant_doc:
+            print(f"Found document by embedding_id: {relevant_doc.filename} (ID: {relevant_doc.id})")
+        else:
+            print(f"No document found with embedding_id: {message.embedding_id}")
+    
+    # If no document found by embedding_id, look for documents in the session
+    if not relevant_doc:
+        session_documents = db.exec(
+            select(Document).where(Document.session_id == message.session_id)
+            .order_by(Document.uploaded_at.desc())
+        ).all()
+        
+        if session_documents:
+            # Get the most recently uploaded document before this message
+            for doc in session_documents:
+                if doc.uploaded_at <= message.timestamp:
+                    relevant_doc = doc
+                    break
+            
+            # If no document found before message, use the most recent document
+            if relevant_doc is None and session_documents:
+                relevant_doc = session_documents[0]
+                
+            if relevant_doc:
+                print(f"Found document by session timing: {relevant_doc.filename} (ID: {relevant_doc.id})")
+                print(f"Document uploaded at: {relevant_doc.uploaded_at}, Message timestamp: {message.timestamp}")
+    
+    # If we found a relevant document, summarize it
+    if relevant_doc:
+        print(f"Summarizing document: {relevant_doc.filename} (ID: {relevant_doc.id})")
+        # Generate summary using document content
+        return generate_summary(
+            input_data=relevant_doc.text,
+            format=format,
+            input_type="text"
+        )
+    
+    # If no documents found, use the message content
+    print(f"No documents found, summarizing message content for message ID: {message_id}")
+    return generate_summary(
+        input_data=message.content,
+        format=format,
+        input_type="text"
+    )
+
+def generate_document_summary(document_id: int, format: str, db: Session) -> str:
+    """
+    Generate a summary of a specific document by ID.
+    
+    Args:
+        document_id (int): The ID of the document to summarize.
+        format (str): The format of the summary ('bullet', 'paragraph', 'insight').
+        db (Session): Database session for fetching the document.
+    
+    Returns:
+        str: The generated summary.
+    
+    Raises:
+        ValueError: If document not found or invalid format.
+    """
+    from models.db_models import Document
+    
+    # Fetch the document from database
+    document = db.get(Document, document_id)
+    if not document:
+        raise ValueError(f"Document with ID {document_id} not found")
+    
+    # Validate format
+    valid_formats = {"bullet", "paragraph", "insight"}
+    if format not in valid_formats:
+        raise ValueError(f"Invalid format '{format}'. Valid formats are: {', '.join(valid_formats)}")
+    
+    print(f"Summarizing document: {document.filename} (ID: {document.id})")
+    
+    # Generate summary using document content
+    return generate_summary(
+        input_data=document.text,
+        format=format,
+        input_type="text"
+    )
 
 def generate_summary(
     input_data: Union[str, bytes], 

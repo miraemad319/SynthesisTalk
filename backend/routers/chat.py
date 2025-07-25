@@ -23,7 +23,7 @@ from models.api_models import ChatRequest, ChatResponse, StructuredSummaryReques
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("chat_logger")
 
 router = APIRouter()
 
@@ -34,13 +34,25 @@ def get_messages(session_id: int, db: Session = Depends(get_session)):
         statement = select(Message).where(Message.session_id == session_id).order_by(Message.timestamp.asc())
         messages = db.execute(statement).scalars().all()
 
+        # Include message IDs and parse insights
+        messages_with_ids = [
+            {
+                "id": message.id,
+                "content": message.content,
+                "timestamp": message.timestamp,
+                "sender": message.sender,
+                "insights": message.insights  # Return structured insights
+            }
+            for message in messages
+        ]
+
         # Fetch documents (uploaded files)
         document_statement = select(Document).where(Document.session_id == session_id).order_by(Document.uploaded_at.asc())
         documents = db.execute(document_statement).scalars().all()
 
         # Combine messages and documents
         combined_results = {
-            "messages": messages,
+            "messages": messages_with_ids,
             "documents": documents
         }
 
@@ -130,38 +142,6 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
         # Generate insights if enabled
         insights_data = None
         visualizations = []
-        if request.enable_insights:
-            logger.info("Generating insights...")
-            try:
-                # Prepare data for insights generation
-                insight_data = []
-                
-                # Add context data for insights
-                if context_result.get("context"):
-                    insight_data.append({
-                        "type": "context",
-                        "content": context_result["context"],
-                        "source": "research_context"
-                    })
-                
-                # Filter context to include only relevant parts for the current user message
-                filtered_context = context_result.get("context", "").split("\n\n")[-1]  # Example: Use only the last part of the context
-                
-                # Generate insights
-                insights_result = generate_insights(
-                    data=insight_data,
-                    context=filtered_context,
-                    user_message=request.message
-                )
-                
-                insights_data = insights_result
-                visualizations = insights_result.get("visualizations", [])
-                
-                logger.info(f"Generated insights with confidence: {insights_result.get('confidence_score', 0)}")
-                
-            except Exception as e:
-                logger.error(f"Error generating insights: {e}")
-                insights_data = {"error": f"Failed to generate insights: {str(e)}"}
 
         logger.info("Generating prompt...")
         # Generate prompt with optional reasoning
@@ -201,6 +181,50 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
         )
         db.add(bot_message)
         db.commit()
+        db.refresh(bot_message)
+
+        # Generate insights if enabled
+        if request.enable_insights:
+            logger.info("Generating insights...")
+            try:
+                # Prepare data for insights generation
+                insight_data = []
+                
+                # Add context data for insights
+                if context_result.get("context"):
+                    insight_data.append({
+                        "type": "context",
+                        "content": context_result["context"],
+                        "source": "research_context"
+                    })
+                
+                # Filter context to include only relevant parts for the current user message
+                filtered_context = context_result.get("context", "").split("\n\n")[-1]  # Example: Use only the last part of the context
+                
+                # Generate insights
+                insights_result = generate_insights(
+                    data=insight_data,
+                    context=filtered_context,
+                    user_message=request.message
+                )
+                
+                insights_data = insights_result
+                visualizations = insights_result.get("visualizations", [])
+                
+                logger.info(f"Generated insights with confidence: {insights_result.get('confidence_score', 0)}")
+                
+                # Log the insights result for debugging
+                logger.info(f"Insights result: {insights_result}")
+                
+                # Save insights in the database
+                bot_message.insights = json.dumps(insights_result)  # Store the full insights report
+                db.add(bot_message)
+                db.commit()
+                db.refresh(bot_message)
+
+            except Exception as e:
+                logger.error(f"Error generating insights: {e}")
+                insights_data = {"error": f"Failed to generate insights: {str(e)}"}
 
         logger.info("Generating and storing embeddings...")
         # Generate and store embeddings
@@ -247,7 +271,8 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
                 "sources_used": sources_used,
                 "reasoning_applied": request.enable_reasoning,
                 "reasoning_type": request.reasoning_type.value if request.enable_reasoning else None,
-            }
+            },
+            message_id=bot_message.id
         )
         
         logger.info(f"Reasoning result generated: {reasoning_result[:200]}...")  # Log first 200 chars

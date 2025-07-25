@@ -3,6 +3,8 @@ from typing import Optional
 from datetime import datetime
 from sqlalchemy import Column
 from pgvector.sqlalchemy import Vector
+from typing import Dict, Any
+from sqlalchemy.types import JSON
 
 class Session(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -19,6 +21,7 @@ class Message(SQLModel, table=True):
     thumbs_up: Optional[bool] = None  # User feedback: thumbs up
     thumbs_down: Optional[bool] = None  # User feedback: thumbs down
     embedding: Optional["Embedding"] = Relationship(back_populates="messages")
+    insights: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
 
 class Document(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

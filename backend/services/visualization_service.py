@@ -17,7 +17,16 @@ from services.extractor_service import (
 
 logger = logging.getLogger(__name__)
 
-def generate_insights(data: List[Dict[str, Any]], context: str = "", user_message: str = "") -> Dict[str, Any]:
+from sqlalchemy.orm import Session
+import json
+
+def generate_insights(
+    data: List[Dict[str, Any]],
+    context: str = "",
+    user_message: str = "",
+    db: Session = None,
+    message_id: int = None
+) -> Dict[str, Any]:
     """
     Advanced insight generation that analyzes patterns, trends, and relationships in collected data.
     
@@ -25,13 +34,12 @@ def generate_insights(data: List[Dict[str, Any]], context: str = "", user_messag
         data (List[Dict[str, Any]]): A list of dictionaries containing research findings.
         context (str): Additional context from documents and web search.
         user_message (str): The original user query for relevance scoring.
+        db (Session, optional): The database session for saving insights.
+        message_id (int, optional): The ID of the message to update in the database.
     
     Returns:
         Dict[str, Any]: A comprehensive insights report with patterns, trends, and visualizations.
     """
-     # Focus on the specific user message and its immediate context
-    relevant_data = [item for item in data if user_message in item.get("content", "")]
-
     try:
         insights_report = {
             "summary": "",
@@ -78,6 +86,14 @@ def generate_insights(data: List[Dict[str, Any]], context: str = "", user_messag
         # 8. Create comprehensive summary
         summary = _create_insight_summary(insights_report)
         insights_report["summary"] = summary
+        
+        # Save insights to the database if db and message_id are provided
+        if db and message_id:
+            message = db.query(Message).filter_by(id=message_id).first()
+            if not message:
+                raise ValueError("Message not found")
+            message.insights = json.dumps(insights_report)
+            db.commit()
         
         return insights_report
         
