@@ -43,24 +43,3 @@ async def get_llm_response(prompt: str) -> str:
 
     return f"I apologize, but I'm currently unable to process your request due to technical issues with the AI services. Please try again later. Error details: {error_summary}"
 
-# Debug endpoint to check API configuration
-# @router.get("/debug/api-status")
-# def debug_api_status():
-#     """Debug endpoint to check which APIs are configured"""
-#     status = {
-#         "openai": {
-#             "configured": bool(settings.OPENAI_API_KEY),
-#             "model": settings.OPENAI_MODEL or "gpt-4o"
-#         },
-#         "groq": {
-#             "configured": bool(settings.GROQ_API_KEY),
-#             "model": settings.GROQ_MODEL or "llama3-70b-8192",
-#             "base_url": settings.GROQ_BASE_URL or "https://api.groq.com"
-#         },
-#         "ngu": {
-#             "configured": bool(settings.NGU_API_KEY and settings.NGU_BASE_URL),
-#             "model": settings.NGU_MODEL or "qwen2.5-coder:7b",
-#             "base_url": settings.NGU_BASE_URL
-#         }
-#     }
-#     return status
