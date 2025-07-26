@@ -492,14 +492,12 @@ def build_prompt(
 6.  Maintaining context across conversations
 
 When responding:
-- Provide responses in plain text format without markdown formatting
 - Use the provided reasoning analysis to structure your thinking
 - Be concise but comprehensive
 - Cite sources when referencing specific information
 - Ask clarifying questions if the request is ambiguous
 - Offer to search for additional information if needed
-- Maintain conversation context and remember previous discussions
-- Do not use markdown syntax, headers, bold text, or special formatting"""
+- Maintain conversation context and remember previous discussions"""
 
     # Analyze feedback patterns if db is provided
     avoid_phrases = []

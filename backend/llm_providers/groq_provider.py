@@ -3,7 +3,7 @@ import httpx
 from settings.settings import settings
 
 # Set up logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("groq_logger")
 
 async def call_groq(prompt: str) -> str:
     if not settings.GROQ_API_KEY:

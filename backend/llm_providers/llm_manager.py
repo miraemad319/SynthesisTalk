@@ -4,8 +4,10 @@ from .openai_provider import call_openai
 from .groq_provider import call_groq
 from .ngu_provider import call_ngu
 
+from utils.strip_markdown import strip_markdown
+
 # Set up logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("llm_logger")
 
 async def get_llm_response(prompt: str) -> str:
     """Try LLM providers in order with proper error handling"""
@@ -31,7 +33,14 @@ async def get_llm_response(prompt: str) -> str:
             logger.debug(f"🔍 {provider_name} Result: {result}")
 
             logger.info(f"✅ {provider_name} succeeded")
+
+            # Post-process to remove markdown formatting
+            if result:
+                result = strip_markdown(result)
+
+            logger.info(f"✅ {provider_name} succeeded")
             return result
+
         except Exception as e:
             error_msg = f"{provider_name} failed: {str(e)}"
             logger.warning(f"⚠️ {error_msg}")
