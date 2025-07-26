@@ -2,6 +2,9 @@ from fpdf import FPDF
 from docx import Document
 from typing import Dict, Any
 import unicodedata
+import base64
+import io
+from PIL import Image
 
 def _clean_text_for_pdf(text: str) -> str:
     """Clean text to remove characters that can't be encoded in Latin-1."""
@@ -96,6 +99,50 @@ def _export_to_pdf(insights_report: Dict[str, Any], file_path: str) -> None:
         relationship_text = _clean_text_for_pdf(f"- {relationship['term1']} <-> {relationship['term2']} (Strength: {relationship['strength']})")
         pdf.cell(0, 10, txt=relationship_text, ln=True)
     pdf.ln(5)
+    
+    # Add visualizations
+    visualizations = insights_report.get("visualizations", [])
+    if visualizations:
+        pdf.set_font("Arial", style="B", size=14)
+        pdf.cell(0, 10, txt="Visualizations:", ln=True)
+        pdf.ln(5)
+        
+        for i, viz in enumerate(visualizations):
+            if 'data' in viz and viz['data']:
+                try:
+                    # Decode base64 image
+                    img_data = base64.b64decode(viz['data'])
+                    img_file = f"temp_viz_{i}.png"
+                    
+                    # Save temporarily
+                    with open(img_file, 'wb') as f:
+                        f.write(img_data)
+                    
+                    # Add title for the visualization
+                    pdf.set_font("Arial", style="I", size=12)
+                    pdf.cell(0, 10, txt=viz.get('title', f"Visualization {i+1}"), ln=True)
+                    
+                    # Add the image
+                    try:
+                        pdf.image(img_file, x=10, w=180)
+                        pdf.ln(5)
+                        
+                        # Add description if available
+                        if 'description' in viz:
+                            pdf.set_font("Arial", size=10)
+                            description_text = _clean_text_for_pdf(viz['description'])
+                            pdf.multi_cell(0, 5, txt=description_text)
+                            pdf.ln(5)
+                    except Exception as e:
+                        pdf.cell(0, 10, txt=f"[Error displaying visualization: {str(e)}]", ln=True)
+                    
+                    # Clean up temp file
+                    import os
+                    if os.path.exists(img_file):
+                        os.remove(img_file)
+                        
+                except Exception as e:
+                    pdf.cell(0, 10, txt=f"[Error processing visualization: {str(e)}]", ln=True)
 
     # Save PDF
     pdf.output(file_path)
@@ -126,6 +173,43 @@ def _export_to_word(insights_report: Dict[str, Any], file_path: str) -> None:
     for relationship in insights_report.get("relationships", []):
         # Use ASCII arrow for consistency
         doc.add_paragraph(f"- {relationship['term1']} <-> {relationship['term2']} (Strength: {relationship['strength']})")
+    
+    # Add visualizations
+    visualizations = insights_report.get("visualizations", [])
+    if visualizations:
+        doc.add_heading("Visualizations", level=2)
+        
+        for i, viz in enumerate(visualizations):
+            if 'data' in viz and viz['data']:
+                try:
+                    # Decode base64 image
+                    img_data = base64.b64decode(viz['data'])
+                    img_file = f"temp_viz_{i}.png"
+                    
+                    # Save temporarily
+                    with open(img_file, 'wb') as f:
+                        f.write(img_data)
+                    
+                    # Add title for the visualization
+                    doc.add_heading(viz.get('title', f"Visualization {i+1}"), level=3)
+                    
+                    # Add the image to the document
+                    try:
+                        doc.add_picture(img_file, width=6000000)  # Width in EMU (English Metric Units)
+                        
+                        # Add description if available
+                        if 'description' in viz:
+                            doc.add_paragraph(viz['description'], style='Italic')
+                    except Exception as e:
+                        doc.add_paragraph(f"[Error displaying visualization: {str(e)}]")
+                    
+                    # Clean up temp file
+                    import os
+                    if os.path.exists(img_file):
+                        os.remove(img_file)
+                        
+                except Exception as e:
+                    doc.add_paragraph(f"[Error processing visualization: {str(e)}]")
 
     # Save Word document
     doc.save(file_path)
