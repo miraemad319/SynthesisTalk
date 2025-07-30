@@ -138,7 +138,7 @@ class ContextBuilder:
             # 7. Generate insights analysis if enabled
             insights_analysis = None
             if include_insights:
-                insights_analysis = self._generate_insights_analysis(
+                insights_analysis = await self._generate_insights_analysis(
                     context_parts, user_message, final_context
                 )
                 metadata["insights_analysis"] = "Applied"
@@ -320,37 +320,74 @@ class ContextBuilder:
         
         return "\n\n".join(combined_context)
     
-    def _apply_reasoning(
+    async def _apply_reasoning(
         self, 
         context: str, 
         user_message: str, 
         reasoning_type: ReasoningType,
         question_type: Optional[QuestionType] = None
     ) -> str:
-        """Apply selected reasoning technique to the context and user message"""
+        """Apply selected reasoning technique with self-correction for ALL types"""
         try:
             available_tools = ["web_search", "document_search", "calculation", "analysis"]
             
             logger.info(f"Applying reasoning type: {reasoning_type.value}")
 
             if reasoning_type == ReasoningType.CHAIN_OF_THOUGHT:
-                return chain_of_thought_reasoning(context, user_message, question_type)
+                # Generate initial CoT reasoning
+                initial_reasoning = chain_of_thought_reasoning(context, user_message, question_type)
+                
+                # Apply self-correction
+                corrected_reasoning = await self_correct(
+                    query=f"Context: {context}\nQuestion: {user_message}",
+                    initial_response=initial_reasoning,
+                    task_type="reasoning"
+                )
+                logger.info("Applied self-correction to CoT reasoning")
+                return corrected_reasoning
+                
             elif reasoning_type == ReasoningType.REACT:
-                return react_reasoning(context, user_message, available_tools)
+                # Generate initial ReAct reasoning
+                initial_reasoning = react_reasoning(context, user_message, available_tools)
+                
+                # Apply self-correction
+                corrected_reasoning = await self_correct(
+                    query=f"Context: {context}\nQuestion: {user_message}\nTools: {available_tools}",
+                    initial_response=initial_reasoning,
+                    task_type="reasoning"
+                )
+                logger.info("Applied self-correction to ReAct reasoning")
+                return corrected_reasoning
+                
             elif reasoning_type == ReasoningType.HYBRID:
-                return hybrid_reasoning(context, user_message, available_tools)
+                # Generate initial Hybrid reasoning
+                initial_reasoning = hybrid_reasoning(context, user_message, available_tools)
+                
+                # Apply self-correction
+                corrected_reasoning = await self_correct(
+                    query=f"Context: {context}\nQuestion: {user_message}\nTools: {available_tools}",
+                    initial_response=initial_reasoning,
+                    task_type="reasoning"
+                )
+                logger.info("Applied self-correction to Hybrid reasoning")
+                return corrected_reasoning
+                
             else:
                 logger.warning(f"Unknown reasoning type: {reasoning_type}")
-                return chain_of_thought_reasoning(context, user_message, question_type)
+                # Fallback to CoT with correction
+                initial_reasoning = chain_of_thought_reasoning(context, user_message, question_type)
+                corrected_reasoning = await self_correct(
+                    query=f"Context: {context}\nQuestion: {user_message}",
+                    initial_response=initial_reasoning,
+                    task_type="reasoning"
+                )
+                return corrected_reasoning
             
-            logger.info(f"Reasoning result generated: {reasoning_result[:200]}...")  # Log first 200 chars
-            return reasoning_result
-                
         except Exception as e:
             logger.error(f"Failed to apply reasoning: {e}")
             return f"Reasoning Error: {str(e)}"
 
-    def _generate_insights_analysis(
+    async def _generate_insights_analysis(
     self, 
     context_parts: List[Dict[str, Any]], 
     user_message: str, 
@@ -369,7 +406,7 @@ class ContextBuilder:
                 })
             
             # Generate insights
-            insights = generate_insights(insight_data, final_context, user_message)
+            insights = await generate_insights(insight_data, final_context, user_message)
             
             logger.info(f"Generated insights with confidence: {insights.get('confidence_score', 0)}")
             return insights

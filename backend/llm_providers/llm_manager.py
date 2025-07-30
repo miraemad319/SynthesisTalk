@@ -3,6 +3,7 @@ import asyncio
 from .openai_provider import call_openai
 from .groq_provider import call_groq
 from .ngu_provider import call_ngu
+from .gemini_provider import call_gemini
 
 from utils.strip_markdown import strip_markdown
 
@@ -15,6 +16,7 @@ async def get_llm_response(prompt: str) -> str:
     # List of LLM providers to try in order
     providers = [
         ("OpenAI", call_openai),
+        ("Gemini", call_gemini),
         ("Groq", call_groq),
         ("NGU", call_ngu)
     ]
@@ -51,4 +53,3 @@ async def get_llm_response(prompt: str) -> str:
     logger.error(f"❌ All LLM providers failed: {error_summary}")
 
     return f"I apologize, but I'm currently unable to process your request due to technical issues with the AI services. Please try again later. Error details: {error_summary}"
-

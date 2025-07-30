@@ -5,9 +5,10 @@ from typing import Optional
 import asyncio
 import re
 from llm_providers.llm_manager import get_llm_response
+from services.self_correction_service import self_correct
 
-def generate_explanation(db: Session, session_id: int, content: str) -> Message:
-    """Generate an explanation for the given content using an LLM, focusing on simplicity."""
+async def generate_explanation(db: Session, session_id: int, content: str) -> Message:
+    """Generate an explanation for the given content using an LLM with self-correction."""
     try:
         # Clean the content to remove excessive whitespace
         clean_content = re.sub(r'\s+', ' ', content.strip())
@@ -23,15 +24,17 @@ Text to explain:
 
 Simple explanation:"""
 
-        # Get LLM response synchronously
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        explanation = loop.run_until_complete(get_llm_response(prompt))
-        loop.close()
+        # Get initial LLM response
+        initial_explanation = await get_llm_response(prompt)
         
-        # Clean and format the response
-        if explanation and explanation.strip():
-            explanation_content = explanation.strip()
+        # Apply self-correction for explanation task
+        if initial_explanation and initial_explanation.strip():
+            corrected_explanation = await self_correct(
+                query=f"Explain this content simply: {clean_content}",
+                initial_response=initial_explanation,
+                task_type="explanation"
+            )
+            explanation_content = corrected_explanation.strip()
         else:
             explanation_content = "Unable to generate explanation for the provided content."
         
@@ -46,6 +49,7 @@ Simple explanation:"""
         db.commit()
         db.refresh(explanation_message)
         return explanation_message
+        
     except Exception as e:
         # Fallback response if LLM fails
         fallback_explanation = generate_simple_explanation(content)
@@ -59,9 +63,8 @@ Simple explanation:"""
         db.commit()
         db.refresh(explanation_message)
         return explanation_message
-
-def clarify(db: Session, session_id: int, content: str) -> Message:
-    """Add more details or context to the given content using an LLM."""
+async def clarify(db: Session, session_id: int, content: str) -> Message:
+    """Add more details or context to the given content using an LLM with self-correction."""
     try:
         # Clean the content to remove excessive whitespace
         clean_content = re.sub(r'\s+', ' ', content.strip())
@@ -77,15 +80,17 @@ Text to clarify:
 
 Additional context and clarification:"""
 
-        # Get LLM response synchronously
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        clarification = loop.run_until_complete(get_llm_response(prompt))
-        loop.close()
+        # Get initial LLM response
+        initial_clarification = await get_llm_response(prompt)
         
-        # Clean and format the response
-        if clarification and clarification.strip():
-            clarification_content = clarification.strip()
+        # Apply self-correction for clarification task
+        if initial_clarification and initial_clarification.strip():
+            corrected_clarification = await self_correct(
+                query=f"Provide clarification for: {clean_content}",
+                initial_response=initial_clarification,
+                task_type="clarification"
+            )
+            clarification_content = corrected_clarification.strip()
         else:
             clarification_content = "Unable to provide additional clarification for the provided content."
         
@@ -100,6 +105,7 @@ Additional context and clarification:"""
         db.commit()
         db.refresh(clarification_message)
         return clarification_message
+        
     except Exception as e:
         # Fallback response if LLM fails
         fallback_clarification = generate_simple_clarification(content)

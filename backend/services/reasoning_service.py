@@ -7,6 +7,8 @@ import re
 from typing import Dict, List, Any, Optional, Tuple
 from enum import Enum
 from models.api_models import ReasoningType, QuestionType
+import asyncio
+from services.self_correction_service import self_correct
 
 logger = logging.getLogger("reasoning_logger")
 
@@ -49,6 +51,81 @@ def extract_key_concepts(text: str) -> List[str]:
     
     # Return unique concepts, limited to most relevant
     return list(set(key_concepts))[:10]
+
+async def chain_of_thought_reasoning_with_correction(
+    context: str, 
+    user_message: str, 
+    question_type: Optional[QuestionType] = None
+) -> str:
+    """Enhanced CoT reasoning with self-correction"""
+    try:
+        # Generate initial reasoning
+        initial_reasoning = chain_of_thought_reasoning(context, user_message, question_type)
+        
+        # Apply self-correction specifically for reasoning
+        corrected_reasoning = await self_correct(
+            query=f"Context: {context}\nQuestion: {user_message}",
+            initial_response=initial_reasoning,
+            task_type="reasoning"
+        )
+        
+        logger.info("Applied self-correction to CoT reasoning")
+        return corrected_reasoning
+        
+    except Exception as e:
+        logger.error(f"Enhanced CoT reasoning failed: {e}")
+        # Fallback to original reasoning
+        return chain_of_thought_reasoning(context, user_message, question_type)
+
+async def react_reasoning_with_correction(
+    context: str, 
+    user_message: str, 
+    available_tools: List[str]
+) -> str:
+    """Enhanced ReAct reasoning with self-correction"""
+    try:
+        # Generate initial reasoning
+        initial_reasoning = react_reasoning(context, user_message, available_tools)
+        
+        # Apply self-correction for ReAct reasoning
+        corrected_reasoning = await self_correct(
+            query=f"Context: {context}\nQuestion: {user_message}\nTools: {available_tools}",
+            initial_response=initial_reasoning,
+            task_type="reasoning"
+        )
+        
+        logger.info("Applied self-correction to ReAct reasoning")
+        return corrected_reasoning
+        
+    except Exception as e:
+        logger.error(f"Enhanced ReAct reasoning failed: {e}")
+        # Fallback to original reasoning
+        return react_reasoning(context, user_message, available_tools)
+
+async def hybrid_reasoning_with_correction(
+    context: str, 
+    user_message: str, 
+    available_tools: List[str]
+) -> str:
+    """Enhanced Hybrid reasoning with self-correction"""
+    try:
+        # Generate initial reasoning
+        initial_reasoning = hybrid_reasoning(context, user_message, available_tools)
+        
+        # Apply self-correction for hybrid reasoning
+        corrected_reasoning = await self_correct(
+            query=f"Context: {context}\nQuestion: {user_message}\nTools: {available_tools}",
+            initial_response=initial_reasoning,
+            task_type="reasoning"
+        )
+        
+        logger.info("Applied self-correction to Hybrid reasoning")
+        return corrected_reasoning
+        
+    except Exception as e:
+        logger.error(f"Enhanced Hybrid reasoning failed: {e}")
+        # Fallback to original reasoning
+        return hybrid_reasoning(context, user_message, available_tools)
 
 def chain_of_thought_reasoning(context: str, user_message: str, question_type: Optional[QuestionType] = None) -> str:
     """
