@@ -35,7 +35,7 @@ def get_documents_text(db: Session, session_id: int) -> str:
 
 async def search_documents(query: str, session_id: int, db: Session = None, top_k: int = 5) -> List[Dict[str, Any]]:
     """
-    Search through documents using semantic similarity
+    Search through documents using semantic similarity with embeddings
     """
     try:
         if not db:
@@ -48,41 +48,79 @@ async def search_documents(query: str, session_id: int, db: Session = None, top_
             logger.warning("Failed to generate embedding for query")
             return []
         
-        # Get all documents for the session
-        statement = select(Document).where(Document.session_id == session_id)
-        documents = db.execute(statement).scalars().all()
-        
-        if not documents:
-            logger.info(f"No documents found for session_id: {session_id}")
-            return []
-        
-        # Simple text-based search as fallback if no embeddings
-        results = []
-        for doc in documents:
-            # Calculate simple text similarity (can be enhanced with embeddings)
-            similarity_score = calculate_text_similarity(query.lower(), doc.text.lower())
-            logger.debug(f"Document ID: {doc.id}, Similarity Score: {similarity_score}")
+        # Get documents with their embeddings using semantic search
+        try:
+            query_embedding_str = "ARRAY[" + ",".join(map(str, query_embedding)) + "]::vector"
             
-            if similarity_score > 0.1:  # Threshold for relevance
-                # Extract relevant snippet
-                snippet = extract_relevant_snippet(query, doc.text)
+            results = db.execute(
+                text(
+                    f"""
+                    SELECT d.id as document_id, d.filename, d.text, e.text as snippet,
+                           (e.embedding <-> {query_embedding_str}) as distance
+                    FROM document d
+                    JOIN embedding e ON d.embedding_id = e.id
+                    WHERE d.session_id = :session_id
+                    ORDER BY distance ASC
+                    LIMIT :top_k
+                    """
+                ),
+                {"session_id": session_id, "top_k": top_k}
+            ).fetchall()
+            
+            documents = []
+            for row in results:
+                # Convert distance to similarity score (lower distance = higher similarity)
+                similarity_score = max(0, 1 - float(row.distance))
                 
-                results.append({
-                    "document_id": doc.id,
-                    "filename": doc.filename,
-                    "snippet": snippet,
+                documents.append({
+                    "document_id": row.document_id,
+                    "filename": row.filename,
+                    "snippet": extract_relevant_snippet(query, row.snippet),
                     "similarity_score": similarity_score,
                     "source": "document"
                 })
-        
-        # Sort by similarity score and return top results
-        results.sort(key=lambda x: x["similarity_score"], reverse=True)
-        logger.info(f"Total results found: {len(results)}")
-        return results[:top_k]
+            
+            logger.info(f"Found {len(documents)} documents using semantic search")
+            return documents
+            
+        except Exception as e:
+            logger.warning(f"Semantic search failed, falling back to text search: {e}")
+            # Fallback to existing text-based search
+            return await _text_based_search(query, session_id, db, top_k)
         
     except Exception as e:
         logger.error(f"Document search failed: {e}")
         return []
+
+async def _text_based_search(query: str, session_id: int, db: Session, top_k: int) -> List[Dict[str, Any]]:
+    """Fallback text-based search when semantic search fails"""
+    # Get all documents for the session
+    statement = select(Document).where(Document.session_id == session_id)
+    documents = db.execute(statement).scalars().all()
+    
+    if not documents:
+        logger.info(f"No documents found for session_id: {session_id}")
+        return []
+    
+    results = []
+    for doc in documents:
+        # Calculate simple text similarity
+        similarity_score = calculate_text_similarity(query.lower(), doc.text.lower())
+        
+        if similarity_score > 0.1:  # Threshold for relevance
+            snippet = extract_relevant_snippet(query, doc.text)
+            
+            results.append({
+                "document_id": doc.id,
+                "filename": doc.filename,
+                "snippet": snippet,
+                "similarity_score": similarity_score,
+                "source": "document"
+            })
+    
+    # Sort by similarity score and return top results
+    results.sort(key=lambda x: x["similarity_score"], reverse=True)
+    return results[:top_k]
 
 def calculate_text_similarity(query: str, text: str) -> float:
     """

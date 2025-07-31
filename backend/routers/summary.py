@@ -15,7 +15,7 @@ router = APIRouter()
 
 logger = logging.getLogger("summary_logger")
 
-@router.post("/summarize")
+@router.post("/summarize-message")
 def summarize_message_endpoint(
     message_id: int = Form(..., description="Message ID to summarize"),
     format: str = Form(..., description="Summary format: bullet, paragraph, or insight"),

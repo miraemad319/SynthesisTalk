@@ -5,6 +5,7 @@ import re
 import logging
 from collections import Counter
 from typing import List, Dict, Any, Tuple
+from services.self_correction_service import self_correct
 
 # Import existing text extraction functions
 from services.extractor_service import (
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 from sqlalchemy.orm import Session
 import json
 
-def generate_insights(
+async def generate_insights(
     data: List[Dict[str, Any]],
     context: str = "",
     user_message: str = "",
@@ -94,6 +95,14 @@ def generate_insights(
                 raise ValueError("Message not found")
             message.insights = json.dumps(insights_report)
             db.commit()
+        
+        if insights_report.get("summary"):
+            corrected_summary = await self_correct(
+            query=user_message,
+            initial_response=insights_report["summary"],
+            task_type="insights"
+        )
+        insights_report["summary"] = corrected_summary
         
         return insights_report
         

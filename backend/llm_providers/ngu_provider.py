@@ -3,7 +3,7 @@ import httpx
 from settings.settings import settings
 
 # Set up logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("ngu_logger")
 
 async def call_ngu(prompt: str) -> str:
     if not settings.NGU_API_KEY or not settings.NGU_BASE_URL:

@@ -1,10 +1,11 @@
 from typing import List, Union
 import re
 import asyncio
+from sqlmodel import select
 from services.document_service import get_documents_text
 from llm_providers.llm_manager import get_llm_response
 from sqlmodel import Session
-from models.db_models import Message
+from models.db_models import Message, Document
 
 # Import extractor functions individually to handle potential import errors
 try:
@@ -48,8 +49,6 @@ def generate_message_summary(message_id: int, format: str, db: Session) -> str:
     Raises:
         ValueError: If message not found or invalid format.
     """
-    from sqlmodel import select
-    from models.db_models import Document
     
     # Fetch the message from database
     message = db.get(Message, message_id)

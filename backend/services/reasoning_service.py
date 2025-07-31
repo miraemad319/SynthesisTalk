@@ -7,8 +7,10 @@ import re
 from typing import Dict, List, Any, Optional, Tuple
 from enum import Enum
 from models.api_models import ReasoningType, QuestionType
+import asyncio
+from services.self_correction_service import self_correct
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("reasoning_logger")
 
 
 def classify_question(user_message: str) -> QuestionType:
@@ -50,6 +52,81 @@ def extract_key_concepts(text: str) -> List[str]:
     # Return unique concepts, limited to most relevant
     return list(set(key_concepts))[:10]
 
+async def chain_of_thought_reasoning_with_correction(
+    context: str, 
+    user_message: str, 
+    question_type: Optional[QuestionType] = None
+) -> str:
+    """Enhanced CoT reasoning with self-correction"""
+    try:
+        # Generate initial reasoning
+        initial_reasoning = chain_of_thought_reasoning(context, user_message, question_type)
+        
+        # Apply self-correction specifically for reasoning
+        corrected_reasoning = await self_correct(
+            query=f"Context: {context}\nQuestion: {user_message}",
+            initial_response=initial_reasoning,
+            task_type="reasoning"
+        )
+        
+        logger.info("Applied self-correction to CoT reasoning")
+        return corrected_reasoning
+        
+    except Exception as e:
+        logger.error(f"Enhanced CoT reasoning failed: {e}")
+        # Fallback to original reasoning
+        return chain_of_thought_reasoning(context, user_message, question_type)
+
+async def react_reasoning_with_correction(
+    context: str, 
+    user_message: str, 
+    available_tools: List[str]
+) -> str:
+    """Enhanced ReAct reasoning with self-correction"""
+    try:
+        # Generate initial reasoning
+        initial_reasoning = react_reasoning(context, user_message, available_tools)
+        
+        # Apply self-correction for ReAct reasoning
+        corrected_reasoning = await self_correct(
+            query=f"Context: {context}\nQuestion: {user_message}\nTools: {available_tools}",
+            initial_response=initial_reasoning,
+            task_type="reasoning"
+        )
+        
+        logger.info("Applied self-correction to ReAct reasoning")
+        return corrected_reasoning
+        
+    except Exception as e:
+        logger.error(f"Enhanced ReAct reasoning failed: {e}")
+        # Fallback to original reasoning
+        return react_reasoning(context, user_message, available_tools)
+
+async def hybrid_reasoning_with_correction(
+    context: str, 
+    user_message: str, 
+    available_tools: List[str]
+) -> str:
+    """Enhanced Hybrid reasoning with self-correction"""
+    try:
+        # Generate initial reasoning
+        initial_reasoning = hybrid_reasoning(context, user_message, available_tools)
+        
+        # Apply self-correction for hybrid reasoning
+        corrected_reasoning = await self_correct(
+            query=f"Context: {context}\nQuestion: {user_message}\nTools: {available_tools}",
+            initial_response=initial_reasoning,
+            task_type="reasoning"
+        )
+        
+        logger.info("Applied self-correction to Hybrid reasoning")
+        return corrected_reasoning
+        
+    except Exception as e:
+        logger.error(f"Enhanced Hybrid reasoning failed: {e}")
+        # Fallback to original reasoning
+        return hybrid_reasoning(context, user_message, available_tools)
+
 def chain_of_thought_reasoning(context: str, user_message: str, question_type: Optional[QuestionType] = None) -> str:
     """
     Enhanced Chain of Thought reasoning with structured thinking process
@@ -62,26 +139,26 @@ def chain_of_thought_reasoning(context: str, user_message: str, question_type: O
     reasoning_steps = []
     
     # Step 1: Problem Understanding
-    reasoning_steps.append("🎯 **Problem Analysis:**")
+    reasoning_steps.append("Problem Analysis:")
     reasoning_steps.append(f"   - Question type: {question_type.value}")
     reasoning_steps.append(f"   - Key concepts: {', '.join(key_concepts[:5])}")
     reasoning_steps.append(f"   - User intent: {_analyze_intent(user_message)}")
     
     # Step 2: Context Analysis
     if context and context.strip():
-        reasoning_steps.append("\n📚 **Context Analysis:**")
+        reasoning_steps.append("\nContext Analysis:")
         context_insights = _analyze_context(context)
         for insight in context_insights:
             reasoning_steps.append(f"   - {insight}")
     
     # Step 3: Reasoning Strategy
-    reasoning_steps.append(f"\n🧠 **Reasoning Strategy for {question_type.value} question:**")
+    reasoning_steps.append(f"\nReasoning Strategy for {question_type.value} question:")
     strategy_steps = _get_reasoning_strategy(question_type)
     for step in strategy_steps:
         reasoning_steps.append(f"   {step}")
     
     # Step 4: Information Synthesis
-    reasoning_steps.append("\n🔄 **Information Synthesis:**")
+    reasoning_steps.append("\nInformation Synthesis:")
     reasoning_steps.append("   - Combining context knowledge with question requirements")
     reasoning_steps.append("   - Identifying gaps or areas needing clarification")
     reasoning_steps.append("   - Structuring response for clarity and completeness")
@@ -101,28 +178,28 @@ def react_reasoning(context: str, user_message: str, available_tools: Optional[L
     react_steps = []
     
     # Thought: Initial reasoning
-    react_steps.append("🤔 **Thought 1: Problem Assessment**")
+    react_steps.append("Thought 1: Problem Assessment")
     react_steps.append(f"   The user is asking about: {', '.join(key_concepts[:3])}")
     react_steps.append(f"   This appears to be a {question_type.value} question.")
     
-    react_steps.append("\n🎯 **Action 1: Information Gathering**")
+    react_steps.append("\nAction 1: Information Gathering")
     recommended_tools = _recommend_tools(user_message, available_tools)
     react_steps.append(f"   Need to gather more information using: {', '.join(recommended_tools)}")
         
-    react_steps.append("\n🤔 **Thought 2: Information Strategy**")
+    react_steps.append("\nThought 2: Information Strategy")
     react_steps.append("   Based on the question type, I should:")
     strategy = _get_information_strategy(question_type)
     for step in strategy:
         react_steps.append(f"   - {step}")
     
     # Action: Processing available information
-    react_steps.append("\n🔍 **Action 2: Information Processing**")
+    react_steps.append("\nAction 2: Information Processing")
     react_steps.append("   - Analyzing available context and information")
     react_steps.append("   - Identifying key relationships and patterns")
     react_steps.append("   - Structuring information for comprehensive response")
     
     # Thought: Final reasoning
-    react_steps.append("\n🤔 **Thought 3: Response Strategy**")
+    react_steps.append("\nThought 3: Response Strategy")
     react_steps.append("   Now I can provide a comprehensive answer by:")
     react_steps.append("   - Using the processed information")
     react_steps.append("   - Addressing the specific question type")
@@ -142,13 +219,13 @@ def hybrid_reasoning(context: str, user_message: str, available_tools: Optional[
         react_part = react_reasoning(context, user_message, available_tools)
         cot_part = chain_of_thought_reasoning(context, user_message, question_type)
         
-        return f"**🔄 HYBRID REASONING APPROACH**\n\n**Phase 1 - Information & Action Planning:**\n{react_part}\n\n**Phase 2 - Analytical Reasoning:**\n{cot_part}"
+        return f"HYBRID REASONING APPROACH\n\nPhase 1 - Information & Action Planning:\n{react_part}\n\nPhase 2 - Analytical Reasoning:\n{cot_part}"
     else:
         # Start with CoT for analysis, then ReAct for validation
         cot_part = chain_of_thought_reasoning(context, user_message, question_type)
         react_part = react_reasoning(context, user_message, available_tools)
         
-        return f"**🔄 HYBRID REASONING APPROACH**\n\n**Phase 1 - Analytical Reasoning:**\n{cot_part}\n\n**Phase 2 - Action & Validation:**\n{react_part}"
+        return f"HYBRID REASONING APPROACH\n\nPhase 1 - Analytical Reasoning:\n{cot_part}\n\nPhase 2 - Action & Validation:\n{react_part}"
 
 # Helper functions
 def _analyze_intent(user_message: str) -> str:

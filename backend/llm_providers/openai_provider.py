@@ -3,7 +3,7 @@ from settings.settings import settings
 from langchain_openai import ChatOpenAI
 
 # Set up logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("openai_logger")
 
 # Initialize OpenAI client only if API key is available
 openai_client = None
@@ -16,23 +16,21 @@ async def call_openai(prompt: str) -> str:
 
     try:
         logger.info("🔹 [OpenAI] Making API call...")
-        
-        # Use the correct LangChain method and format
-        from langchain_core.messages import HumanMessage, SystemMessage
-        
-        messages = [
-            SystemMessage(content="You are a helpful research assistant."),
-            HumanMessage(content=prompt)
-        ]
-        
-        response = await openai_client.ainvoke(messages)
-        
+        response = await openai_client.agenerate(
+            messages=[
+                {"role": "system", "content": "You are a helpful research assistant."},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=500,
+            temperature=0.7,
+        )
+
         logger.debug(f"🔍 [OpenAI] Response: {response}")
 
-        if not response or not response.content:
+        if not response or not response.choices or not response.choices[0].message.content:
             raise Exception("Empty response from OpenAI")
 
-        result = response.content.strip()
+        result = response.choices[0].message.content.strip()
         logger.info("✅ [OpenAI] Success")
         return result
 

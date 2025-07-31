@@ -55,7 +55,8 @@ def export_response(message_id: int, file_path: str, format: str = "pdf", db: Se
         "summary": message.content,
         "key_patterns": insights.get("key_patterns", []),
         "trends": insights.get("trends", []),
-        "relationships": insights.get("relationships", [])
+        "relationships": insights.get("relationships", []),
+        "visualizations": insights.get("visualizations", [])
     }
 
     # Export the content

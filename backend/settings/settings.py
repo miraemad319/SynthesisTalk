@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str]
     OPENAI_MODEL: Optional[str]
 
+    GEMINI_API_KEY: Optional[str]
+    GEMINI_MODEL: Optional[str]
+
     GROQ_API_KEY: Optional[str]
     GROQ_BASE_URL: Optional[str]
     GROQ_MODEL: Optional[str]

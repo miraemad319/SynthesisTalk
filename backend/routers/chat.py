@@ -15,6 +15,7 @@ from services.feedback_analysis import analyze_feedback
 from services.summarize_service import generate_summary
 from services.unified_search_service import search_service
 from services.visualization_service import generate_insights
+from services.self_correction_service import self_correct
 from settings.settings import settings
 
 from utils.text_utils import trim_text_to_token_limit
@@ -89,6 +90,11 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
                 logger.info("Generating summary...")
                 # Generate a summary in the default format (e.g., 'paragraph')
                 summary_text = generate_summary(request.message, format="paragraph")
+                summary_text = await self_correct(
+                    query=request.message,
+                    initial_response=summary_text,
+                    task_type="summarization"
+                )
 
                 logger.info("Storing summary as bot response...")
                 # Save the summary as a bot response
@@ -106,7 +112,7 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
                 # Generate and store embedding for the summary
                 embedding_vector = generate_embedding(summary_text)
                 if embedding_vector:
-                    store_embedding(bot_message.id, embedding_vector, db)
+                    store_embedding(db, request.session_id, summary_text)
 
                 return ChatResponse(
                     success=True,
@@ -136,7 +142,9 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
                 user_message=request.message,
                 include_web_search=request.enable_web_search,
                 include_documents=request.enable_document_search,
-                include_insights=request.enable_insights
+                include_insights=request.enable_insights,
+                include_conversation_history=not request.enable_insights,  # Skip conversation history for insights
+                max_history_messages=2 if request.enable_insights else 10  # Minimal history for insights
             )
 
         # Generate insights if enabled
@@ -164,6 +172,21 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
                 bot_message_content = bot_response["content"]
             else:
                 bot_message_content = "Unable to process the response from the AI service."
+
+            # Apply self-correction mechanism
+            logger.info("Applying self-correction mechanism...")
+            original_response = bot_message_content
+            bot_message_content = await self_correct(
+                query=request.message,
+                initial_response=bot_message_content,
+                task_type="reasoning" if request.enable_reasoning else "general"
+            )
+
+            if bot_message_content != original_response:
+                logger.info("✅ Response was improved by self-correction")
+            else:
+                logger.info("ℹ️ Response was already acceptable")
+
         except Exception as e:
             logger.debug(f"Raw LLM response: {locals().get('bot_response', 'No response received')}")
             logger.error(f"Error while getting LLM response: {e}")
@@ -187,24 +210,41 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
         if request.enable_insights:
             logger.info("Generating insights...")
             try:
-                # Prepare data for insights generation
+                # Prepare data for insights generation - focus on current query and response only
                 insight_data = []
                 
-                # Add context data for insights
-                if context_result.get("context"):
-                    insight_data.append({
-                        "type": "context",
-                        "content": context_result["context"],
-                        "source": "research_context"
-                    })
+                # Add the current user query and bot response as primary insight sources
+                insight_data.append({
+                    "type": "current_query",
+                    "content": f"User Query: {request.message}",
+                    "source": "current_conversation"
+                })
                 
-                # Filter context to include only relevant parts for the current user message
-                filtered_context = context_result.get("context", "").split("\n\n")[-1]  # Example: Use only the last part of the context
+                insight_data.append({
+                    "type": "current_response", 
+                    "content": f"Assistant Response: {bot_message_content}",
+                    "source": "current_conversation"
+                })
+                
+                # Only add relevant document context if documents were searched
+                if request.enable_document_search and context_result.get("context"):
+                    # Extract only document-related sections, not conversation history
+                    context_lines = context_result["context"].split("\n\n")
+                    document_sections = [line for line in context_lines if "RELEVANT DOCUMENTS" in line or "SESSION DOCUMENTS" in line or "📄" in line]
+                    if document_sections:
+                        insight_data.append({
+                            "type": "document_context",
+                            "content": "\n\n".join(document_sections),
+                            "source": "documents"
+                        })
+                
+                # Use current conversation context instead of full context
+                current_conversation_context = f"Query: {request.message}\nResponse: {bot_message_content}"
                 
                 # Generate insights
-                insights_result = generate_insights(
+                insights_result = await generate_insights(
                     data=insight_data,
-                    context=filtered_context,
+                    context=current_conversation_context,
                     user_message=request.message
                 )
                 
@@ -217,10 +257,17 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
                 logger.info(f"Insights result: {insights_result}")
                 
                 # Save insights in the database
-                bot_message.insights = json.dumps(insights_result)  # Store the full insights report
-                db.add(bot_message)
-                db.commit()
-                db.refresh(bot_message)
+                try:
+                    bot_message.insights = json.dumps(insights_result, ensure_ascii=False, default=str)
+                    db.add(bot_message)
+                    db.commit()
+                    db.refresh(bot_message)
+                except (TypeError, ValueError) as json_error:
+                    logger.error(f"Error serializing insights: {json_error}")
+                    bot_message.insights = json.dumps({"error": "Failed to serialize insights data"})
+                    db.add(bot_message)
+                    db.commit()
+                    db.refresh(bot_message)
 
             except Exception as e:
                 logger.error(f"Error generating insights: {e}")
@@ -257,26 +304,33 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
             prompt += "\n\nSources used in the search:\n" + "\n".join(sources_used)
 
         logger.info("Returning chat response...")
-        return ChatResponse(
-            success=True,
-            response=bot_message_content,
-            session_id=request.session_id,
-            tool_calls_made=context_result["metadata"].get("tool_calls", []),
-            reasoning_output=context_result.get("reasoning"),  # This should contain the actual reasoning text
-            question_type=context_result.get("question_type").value if context_result.get("question_type") else None,
-            insights=insights_data,
-            visualizations=visualizations, 
-            metadata={
-                "search_results": search_results,
-                "sources_used": sources_used,
-                "reasoning_applied": request.enable_reasoning,
-                "reasoning_type": request.reasoning_type.value if request.enable_reasoning else None,
-            },
-            message_id=bot_message.id
-        )
-        
-        logger.info(f"Reasoning result generated: {reasoning_result[:200]}...")  # Log first 200 chars
-        return reasoning_result
+        try:
+            return ChatResponse(
+                success=True,
+                response=bot_message_content,
+                session_id=request.session_id,
+                tool_calls_made=context_result["metadata"].get("tool_calls", []),
+                reasoning_output=context_result.get("reasoning"),  # This should contain the actual reasoning text
+                question_type=context_result.get("question_type").value if context_result.get("question_type") else None,
+                insights=insights_data,
+                visualizations=visualizations, 
+                metadata={
+                    "search_results": search_results,
+                    "sources_used": sources_used,
+                    "reasoning_applied": request.enable_reasoning,
+                    "reasoning_type": request.reasoning_type.value if request.enable_reasoning else None,
+                },
+                message_id=bot_message.id
+            )
+        except Exception as response_error:
+            logger.error(f"Error creating ChatResponse: {response_error}")
+            # Return a simplified response if we can't create the full one
+            return ChatResponse(
+                success=True,
+                response=bot_message_content,
+                session_id=request.session_id,
+                message_id=bot_message.id
+            )
 
     except Exception as e:
         logger.error(f"Error in chat endpoint: {e}")
