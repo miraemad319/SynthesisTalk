@@ -1,3 +1,4 @@
+import 'antd/dist/reset.css';
 import './App.css';
 import { useEffect, useState, useCallback } from 'react';
 import ChatWindow from './components/chat/ChatWindow';
@@ -9,15 +10,16 @@ function App() {
   const [sessions, setSessions] = useState([]);
   const [selectedSessionId, setSelectedSessionId] = useState(null);
   const [documentsCount, setDocumentsCount] = useState(0);
+  const [documents, setDocuments] = useState([]);
   const [tools, setTools] = useState({
-    chainOfThought: true,
     webSearch: false,
     documentSearch: false,
     summarization: false,
+    chainOfThought: false,
+    insights: false,
     summaryFormat: 'paragraph'
   });
   const [chatActions, setChatActions] = useState(null);
-  const [isSearching, setIsSearching] = useState(false);
 
   // Load sessions on mount
   useEffect(() => {
@@ -36,31 +38,36 @@ function App() {
     fetchSessions();
   }, []);
 
-  // Load documents count when session changes
+  // Load documents count and documents when session changes
   useEffect(() => {
-    async function fetchDocumentsCount() {
+    async function fetchDocuments() {
       if (!selectedSessionId) {
         setDocumentsCount(0);
+        setDocuments([]);
         return;
       }
 
       try {
-        const documents = await getDocuments(selectedSessionId);
-        setDocumentsCount(Array.isArray(documents) ? documents.length : 0);
+        const documentsData = await getDocuments(selectedSessionId);
+        const documentsArray = Array.isArray(documentsData) ? documentsData : [];
+        setDocumentsCount(documentsArray.length);
+        setDocuments(documentsArray);
       } catch (error) {
-        console.error('Failed to load documents count:', error);
+        console.error('Failed to load documents:', error);
         setDocumentsCount(0);
+        setDocuments([]);
       }
     }
 
-    fetchDocumentsCount();
+    fetchDocuments();
   }, [selectedSessionId]);
 
   // New session handler
   function handleNewSession(newSession) {
     setSessions((prevSessions) => [newSession, ...prevSessions]);
     setSelectedSessionId(newSession.id);
-    setDocumentsCount(0); // New session has no documents
+    setDocumentsCount(0);
+    setDocuments([]);
   }
 
   // Select session
@@ -75,6 +82,7 @@ function App() {
       const remaining = sessions.filter(session => session.id !== deletedSessionId);
       setSelectedSessionId(remaining.length > 0 ? remaining[0].id : null);
       setDocumentsCount(0);
+      setDocuments([]);
     }
   }
 
@@ -83,6 +91,7 @@ function App() {
     setSessions([]);
     setSelectedSessionId(null);
     setDocumentsCount(0);
+    setDocuments([]);
   }
 
   // Toggle tool on/off
@@ -105,16 +114,21 @@ function App() {
     setChatActions(actions);
   }, []);
 
-  // Handle manual web search complete
-  const handleWebSearchComplete = useCallback((results, query) => {
-    console.log('Manual web search completed:', { results, query });
-    // Optionally forward to chat or display
-  }, []);
-
   // Handle documents update (when files are uploaded)
-  const handleDocumentsUpdate = useCallback((newCount) => {
+  const handleDocumentsUpdate = useCallback(async (newCount) => {
     setDocumentsCount(newCount);
-  }, []);
+    
+    // Refresh documents list
+    if (selectedSessionId) {
+      try {
+        const documentsData = await getDocuments(selectedSessionId);
+        const documentsArray = Array.isArray(documentsData) ? documentsData : [];
+        setDocuments(documentsArray);
+      } catch (error) {
+        console.error('Failed to refresh documents:', error);
+      }
+    }
+  }, [selectedSessionId]);
 
   return (
     <div className="app-container">
@@ -126,14 +140,12 @@ function App() {
         onSessionDeleted={handleSessionDeleted}
         onAllSessionsCleared={handleAllSessionsCleared}
       />
-
       <div className="chat-panel">
         {selectedSessionId ? (
           <ChatWindow
             sessionId={selectedSessionId}
             tools={tools}
             onToolsChange={handleChatActionsChange}
-            onSearchStateChange={setIsSearching}
             onDocumentsUpdate={handleDocumentsUpdate}
           />
         ) : (
@@ -143,14 +155,12 @@ function App() {
           </div>
         )}
       </div>
-
       <ToolPanel
         tools={tools}
         onToolToggle={handleToolToggle}
         onSummarizeClick={handleSummarizeClick}
-        onWebSearchComplete={handleWebSearchComplete}
-        isSearching={isSearching}
         documentsCount={documentsCount}
+        documents={documents}
       />
     </div>
   );

@@ -2,16 +2,41 @@
 
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import ReactMarkdown from 'react-markdown';
-
+import {
+  Input,
+  Button,
+  Card,
+  Tag,
+  Alert,
+  Spin,
+  Upload,
+  Typography,
+  Divider,
+  message,
+  Collapse
+} from 'antd';
+import {
+  SendOutlined,
+  PaperClipOutlined,
+  LoadingOutlined,
+  SearchOutlined,
+  FileTextOutlined,
+  CloseOutlined,
+  BulbOutlined,
+  ThunderboltOutlined,
+  DownOutlined
+} from '@ant-design/icons';
 import {
   postChat as sendMessage,
   getSessionMessages as fetchSessionMessages,
   getDocuments,
   uploadFiles,
   postSummary,
-  webSearch,
-  documentSearch,
 } from "../../utils/api.js";
+
+const { TextArea } = Input;
+const { Text } = Typography;
+const { Panel } = Collapse;
 
 const ChatInterface = ({ sessionId, tools, onToolsChange, onDocumentsUpdate }) => {
   const [messages, setMessages] = useState([]);
@@ -21,7 +46,6 @@ const ChatInterface = ({ sessionId, tools, onToolsChange, onDocumentsUpdate }) =
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [summarizing, setSummarizing] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
 
   // Drag and drop states
   const [isDragOver, setIsDragOver] = useState(false);
@@ -33,190 +57,6 @@ const ChatInterface = ({ sessionId, tools, onToolsChange, onDocumentsUpdate }) =
 
   // Supported file extensions
   const ALLOWED_EXTENSIONS = [".pdf", ".txt", ".docx", ".md", ".rtf"];
-
-  // Function to detect if message contains web search request
-  const containsWebSearchRequest = (text) => {
-    const webSearchKeywords = [
-      'search the web', 'web search', 'search for', 'look up', 'find information',
-      'search online', 'google', 'bing', 'search', 'latest news', 'current',
-      'recent information', 'what\'s new', 'update on', 'search internet'
-    ];
-    const lowerText = text.toLowerCase();
-    return webSearchKeywords.some(keyword => lowerText.includes(keyword));
-  };
-
-  // Function to detect if message contains document search request
-  const containsDocumentSearchRequest = (text) => {
-    const docSearchKeywords = [
-      'search documents', 'find in documents', 'document search', 'search my files',
-      'look in documents', 'search uploaded', 'find in files', 'document query'
-    ];
-    const lowerText = text.toLowerCase();
-    return docSearchKeywords.some(keyword => lowerText.includes(keyword));
-  };
-
-  // Function to perform web search
-  const performWebSearch = async (query) => {
-    try {
-      setIsSearching(true);
-      
-      const searchingMessage = {
-        id: Date.now(),
-        sender: "bot",
-        content: `🔍 Searching the web for: "${query}"...`,
-        isSearchMessage: true,
-        timestamp: new Date().toISOString()
-      };
-      
-      setMessages(prev => [...prev, searchingMessage]);
-
-      const searchResponse = await webSearch({ 
-        query,
-        search_provider: "auto",
-        num_results: 5 
-      });
-
-      if (searchResponse?.type === "web_search_result" && searchResponse.sources?.length > 0) {
-        // Format search results with proper markdown links
-        const formattedResults = searchResponse.sources.map((result, index) => (
-          `${index + 1}. [${result.title}](${result.url})\n` +
-          `> ${result.snippet}\n\n`
-        )).join('');
-
-        const resultsMessage = {
-          id: Date.now() + 1,
-          sender: "bot",
-          content: `🌐 **Web Search Results:**\n\n${formattedResults}`,
-          isSearchResultMessage: true,
-          searchResults: searchResponse.sources,
-          timestamp: new Date().toISOString()
-        };
-
-        // Update the searching message with results
-        setMessages(prev => prev.map(msg =>
-          msg.id === searchingMessage.id ? resultsMessage : msg
-        ));
-
-        return searchResponse.sources;
-      } else {
-        // No results found
-        const noResultsMessage = {
-          id: Date.now() + 1,
-          sender: "bot",
-          content: `❌ No web search results found for "${query}". Please try a different search term.`,
-          isSearchMessage: true,
-          timestamp: new Date().toISOString()
-        };
-
-        setMessages(prev => prev.map(msg =>
-          msg.id === searchingMessage.id ? noResultsMessage : msg
-        ));
-
-        return [];
-      }
-    } catch (error) {
-      console.error("Web search failed:", error);
-     
-      const errorMessage = {
-        id: Date.now() + 1,
-        sender: "bot",
-        content: `⚠️ Web search failed: ${error.message}. Please try again.`,
-        isSearchMessage: true,
-        timestamp: new Date().toISOString()
-      };
-
-      setMessages(prev => prev.map(msg =>
-        msg.id === searchingMessage.id ? errorMessage : msg
-      ));
-
-      return [];
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  // Function to perform document search
-  const performDocumentSearch = async (query) => {
-    try {
-      setIsSearching(true);
-     
-      // Add searching message
-      const searchingMessage = {
-        id: Date.now(),
-        sender: "bot",
-        content: `📄 Searching documents for: "${query}"...`,
-        isDocumentSearchMessage: true,
-        timestamp: new Date().toISOString()
-      };
-      setMessages(prev => [...prev, searchingMessage]);
-
-      const searchResponse = await documentSearch({
-        query: query,
-        session_id: sessionId
-      });
-
-      if (searchResponse && searchResponse.results && searchResponse.results.length > 0) {
-        // Format document search results
-        let resultsText = `📄 **Document Search Results for "${query}":**\n\n`;
-       
-        searchResponse.results.forEach((result, index) => {
-          resultsText += `**${index + 1}. ${result.filename}**\n`;
-          resultsText += `${result.snippet}\n`;
-          resultsText += `*Similarity Score: ${(result.similarity_score * 100).toFixed(1)}%*\n\n`;
-        });
-
-        const resultsMessage = {
-          id: Date.now() + 1,
-          sender: "bot",
-          content: resultsText,
-          isDocumentSearchResultMessage: true,
-          searchResults: searchResponse.results,
-          timestamp: new Date().toISOString()
-        };
-
-        // Update the searching message with results
-        setMessages(prev => prev.map(msg =>
-          msg.id === searchingMessage.id ? resultsMessage : msg
-        ));
-
-        return searchResponse.results;
-      } else {
-        // No results found
-        const noResultsMessage = {
-          id: Date.now() + 1,
-          sender: "bot",
-          content: `❌ No document search results found for "${query}". Make sure you have uploaded relevant documents.`,
-          isDocumentSearchMessage: true,
-          timestamp: new Date().toISOString()
-        };
-
-        setMessages(prev => prev.map(msg =>
-          msg.id === searchingMessage.id ? noResultsMessage : msg
-        ));
-
-        return [];
-      }
-
-    } catch (error) {
-      console.error("Document search failed:", error);
-     
-      const errorMessage = {
-        id: Date.now() + 1,
-        sender: "bot",
-        content: `⚠️ Document search failed: ${error.message}. Please try again.`,
-        isDocumentSearchMessage: true,
-        timestamp: new Date().toISOString()
-      };
-
-      setMessages(prev => prev.map(msg =>
-        msg.id === searchingMessage.id ? errorMessage : msg
-      ));
-
-      return [];
-    } finally {
-      setIsSearching(false);
-    }
-  };
 
   // Validate file types
   const validateFiles = (files) => {
@@ -267,7 +107,7 @@ const ChatInterface = ({ sessionId, tools, onToolsChange, onDocumentsUpdate }) =
     setIsDragOver(false);
     setDragCounter(0);
    
-    if (loading || summarizing || isSearching) return;
+    if (loading || summarizing) return;
    
     const files = e.dataTransfer.files;
     if (files && files.length > 0) {
@@ -287,7 +127,7 @@ const ChatInterface = ({ sessionId, tools, onToolsChange, onDocumentsUpdate }) =
         setSelectedFiles(prev => [...prev, ...validFiles]);
       }
     }
-  }, [loading, summarizing, isSearching]);
+  }, [loading, summarizing]);
 
   // Set up drag and drop event listeners
   useEffect(() => {
@@ -308,28 +148,20 @@ const ChatInterface = ({ sessionId, tools, onToolsChange, onDocumentsUpdate }) =
   }, [handleDragEnter, handleDragLeave, handleDragOver, handleDrop]);
 
   // Handle file input change
-  const handleFileInputChange = (e) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
+  const handleFileInputChange = useCallback(({ fileList }) => {
+    if (fileList && fileList.length > 0) {
+      const files = fileList.map(f => f.originFileObj);
       const { validFiles, invalidFiles } = validateFiles(files);
      
       if (invalidFiles.length > 0) {
-        const errorMessage = {
-          id: Date.now(),
-          sender: "bot",
-          content: `⚠️ Unsupported file types: ${invalidFiles.join(", ")}. Supported formats: ${ALLOWED_EXTENSIONS.join(", ")}`,
-          timestamp: new Date().toISOString()
-        };
-        setMessages(prev => [...prev, errorMessage]);
+        message.error(`Unsupported file types: ${invalidFiles.join(", ")}`);
       }
      
       if (validFiles.length > 0) {
         setSelectedFiles(prev => [...prev, ...validFiles]);
       }
     }
-    // Reset file input
-    e.target.value = '';
-  };
+  }, [validateFiles]);
 
   // Remove selected file
   const removeSelectedFile = (indexToRemove) => {
@@ -344,7 +176,6 @@ const ChatInterface = ({ sessionId, tools, onToolsChange, onDocumentsUpdate }) =
       try {
         setLoading(true);
         setError(null);
-
         const [messagesResponse, documentsResponse] = await Promise.all([
           fetchSessionMessages(sessionId).catch(err => {
             console.error("Error loading messages:", err);
@@ -370,6 +201,7 @@ const ChatInterface = ({ sessionId, tools, onToolsChange, onDocumentsUpdate }) =
           sessionDocuments = documentsResponse;
         }
 
+        // Create document upload messages for existing documents
         if (sessionDocuments.length > 0) {
           const existingDocMessages = sessionMessages.filter(msg =>
             msg.isDocumentMessage || (msg.content && msg.content.includes('📄'))
@@ -394,12 +226,11 @@ const ChatInterface = ({ sessionId, tools, onToolsChange, onDocumentsUpdate }) =
 
         setMessages(sessionMessages);
         setDocuments(sessionDocuments);
-        
+       
         // Update documents count in parent
         if (onDocumentsUpdate) {
           onDocumentsUpdate(sessionDocuments.length);
         }
-
       } catch (err) {
         console.error("Error in loadSession:", err);
         setError("Failed to load chat history.");
@@ -423,11 +254,20 @@ const ChatInterface = ({ sessionId, tools, onToolsChange, onDocumentsUpdate }) =
     return summarizeKeywords.some(keyword => lowerText.includes(keyword));
   };
 
+  // Check for web search request
+  const containsWebSearchRequest = (text) => {
+    const webSearchKeywords = [
+      'search the web', 'web search', 'google', 'find online', 'look up',
+      'search for', 'what\'s the latest', 'current news', 'recent', 'today'
+    ];
+    const lowerText = text.toLowerCase();
+    return webSearchKeywords.some(keyword => lowerText.includes(keyword));
+  };
+
   // Handle summarization
   const handleSummarization = async (messageId, format = 'paragraph') => {
     try {
       setSummarizing(true);
-
       const response = await postSummary({
         message_id: messageId,
         format: format
@@ -437,14 +277,12 @@ const ChatInterface = ({ sessionId, tools, onToolsChange, onDocumentsUpdate }) =
         const summaryMessage = {
           id: Date.now() + Math.random(),
           sender: "bot",
-          content: `📋 **Summary (${format}):**\n\n${response.response}`,
+          content: `📋 **Summary:**\n\n${response.response}`,
           isSummaryMessage: true,
           timestamp: new Date().toISOString()
         };
-
         setMessages(prev => [...prev, summaryMessage]);
       }
-
     } catch (error) {
       console.error("Summarization failed:", error);
       const errorMessage = {
@@ -465,8 +303,7 @@ const ChatInterface = ({ sessionId, tools, onToolsChange, onDocumentsUpdate }) =
       .pop();
 
     if (lastBotMessage) {
-      const format = tools.summaryFormat || 'paragraph';
-      handleSummarization(lastBotMessage.id, format);
+      handleSummarization(lastBotMessage.id, 'paragraph');
     } else {
       setMessages(prev => [...prev, {
         id: Date.now(),
@@ -475,7 +312,7 @@ const ChatInterface = ({ sessionId, tools, onToolsChange, onDocumentsUpdate }) =
         timestamp: new Date().toISOString()
       }]);
     }
-  }, [messages, tools.summaryFormat]);
+  }, [messages]);
 
   useEffect(() => {
     if (onToolsChange) {
@@ -523,7 +360,6 @@ const ChatInterface = ({ sessionId, tools, onToolsChange, onDocumentsUpdate }) =
         }
 
         setSelectedFiles([]);
-
       } catch (uploadErr) {
         console.error("File upload failed:", uploadErr);
         setMessages((prev) => [
@@ -550,36 +386,15 @@ const ChatInterface = ({ sessionId, tools, onToolsChange, onDocumentsUpdate }) =
         content: messageToSend,
         timestamp: new Date().toISOString()
       };
-
       setMessages((prev) => [...prev, userMsg]);
     }
 
-    // Search/summarization detection
-    const isAutoSummarizeRequest = containsSummarizeRequest(messageToSend);
-    const isWebSearchRequest = containsWebSearchRequest(messageToSend);
-    const isDocumentSearchRequest = containsDocumentSearchRequest(messageToSend);
-
-    // Define trigger phrases for implicit search
-    const webTriggerPhrases = [
-      "search the web for", "look up online", "find information about",
-      "what is", "who is", "where is", "latest news", "web search", "google"
-    ];
-
-    const docTriggerPhrases = [
-      "search my documents", "find in files", "look in documents",
-      "search uploaded", "document search", "find in my files"
-    ];
-
-    const lower = messageToSend.toLowerCase();
-    const isTriggeredWebSearch = webTriggerPhrases.some(p => lower.includes(p));
-    const isTriggeredDocSearch = docTriggerPhrases.some(p => lower.includes(p));
-
-    const shouldDoWebSearch = tools.webSearch && (isWebSearchRequest || isTriggeredWebSearch);
-    const shouldDoDocumentSearch = tools.documentSearch && (isDocumentSearchRequest || isTriggeredDocSearch || documents.length > 0);
-
     setInput("");
 
-    // Handle direct summarization
+    // Check if it's a direct summarization request
+    const isAutoSummarizeRequest = containsSummarizeRequest(messageToSend);
+    const isWebSearchRequest = containsWebSearchRequest(messageToSend);
+
     if (isAutoSummarizeRequest && tools.summarization && messageToSend) {
       try {
         const lastBotMessage = messages
@@ -587,8 +402,7 @@ const ChatInterface = ({ sessionId, tools, onToolsChange, onDocumentsUpdate }) =
           .pop();
 
         if (lastBotMessage) {
-          const format = tools.summaryFormat || 'paragraph';
-          await handleSummarization(lastBotMessage.id, format);
+          await handleSummarization(lastBotMessage.id, 'paragraph');
         } else {
           setMessages(prev => [...prev, {
             id: Date.now(),
@@ -597,7 +411,6 @@ const ChatInterface = ({ sessionId, tools, onToolsChange, onDocumentsUpdate }) =
             timestamp: new Date().toISOString()
           }]);
         }
-
       } catch (error) {
         console.error("Direct summarization failed:", error);
         setMessages((prev) => [
@@ -616,66 +429,52 @@ const ChatInterface = ({ sessionId, tools, onToolsChange, onDocumentsUpdate }) =
     }
 
     try {
-      let searchResults = [];
-
-      // Perform web search if enabled
-      if (shouldDoWebSearch) {
-        try {
-          const rawResults = await performWebSearch(messageToSend);
-          if (Array.isArray(rawResults) && rawResults.length > 0) {
-            searchResults = rawResults.map(
-              (res) => `🔗 [${res.title}](${res.link || res.url})\n> ${res.snippet}`
-            );
-          }
-        } catch (searchErr) {
-          console.error("Web search error:", searchErr);
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: Date.now() + 1,
-              sender: "bot",
-              content: `⚠️ Web search failed: ${searchErr.message || searchErr}`,
-              timestamp: new Date().toISOString()
-            },
-          ]);
-        }
-      }
-
-      // Perform document search if enabled
-      if (shouldDoDocumentSearch) {
-        try {
-          await performDocumentSearch(messageToSend);
-        } catch (searchErr) {
-          console.error("Document search error:", searchErr);
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: Date.now() + 2,
-              sender: "bot",
-              content: `⚠️ Document search failed: ${searchErr.message || searchErr}`,
-              timestamp: new Date().toISOString()
-            },
-          ]);
-        }
-      }
-
-      // Send message to LLM
+      // Determine if web search should be enabled
+      const shouldEnableWebSearch = tools.webSearch || isWebSearchRequest;
+     
+      // Send message to backend with tool settings
       const res = await sendMessage({
         session_id: sessionId,
         message: messageToSend,
-        enable_reasoning: tools.chainOfThought || true,
-        enable_document_search: shouldDoDocumentSearch,
-        enable_web_search: shouldDoWebSearch,
+        enable_reasoning: tools.chainOfThought || false,
+        enable_document_search: tools.documentSearch || false,
+        enable_web_search: shouldEnableWebSearch,
+        enable_insights: tools.insights || false,
         reasoning_type: "hybrid",
       });
 
+      console.log("Backend response:", res); // Debug log
+
+      // Format the bot response
+      let botContent = res?.response || "No response received.";
+     
+      // Handle web search results if present
+      if (res?.metadata?.search_results?.results?.web_results?.length > 0) {
+        const webResults = res.metadata.search_results.results.web_results;
+        const formattedResults = webResults.map((result, index) => {
+          const url = result.url || result.link || '';
+          const title = result.title || 'Untitled';
+          const snippet = result.snippet || result.description || 'No description available';
+         
+          return `${index + 1}. **[${title}](${url})**\n> ${snippet}\n`;
+        }).join('\n');
+
+        botContent += `\n\n---\n\n🔍 **Web Search Results:**\n\n${formattedResults}`;
+      }
+
+      // Handle insights if present
+      let insightsDisplay = null;
+      if (res?.insights && typeof res.insights === 'object') {
+        insightsDisplay = res.insights;
+      }
+
       const botMessage = {
-        id: Date.now() + 3,
+        id: res?.message_id || Date.now() + 3,
         sender: "bot",
-        content: res?.response || "No response received.",
+        content: botContent,
         reasoning_output: res?.reasoning_output,
         metadata: res?.metadata,
-        searchResults: searchResults,
+        insights: insightsDisplay,
         timestamp: new Date().toISOString()
       };
 
@@ -683,8 +482,7 @@ const ChatInterface = ({ sessionId, tools, onToolsChange, onDocumentsUpdate }) =
 
       // Auto-summarize if requested
       if (isAutoSummarizeRequest && tools.summarization) {
-        const format = tools.summaryFormat || 'paragraph';
-        setTimeout(() => handleSummarization(botMessage.id, format), 500);
+        setTimeout(() => handleSummarization(botMessage.id, 'paragraph'), 500);
       }
 
     } catch (e) {
@@ -711,7 +509,7 @@ const ChatInterface = ({ sessionId, tools, onToolsChange, onDocumentsUpdate }) =
   // Loading state
   if (loading && messages.length === 0) {
     return (
-      <div className="flex flex-col h-full p-4 overflow-hidden bg-white">
+      <div className="flex flex-col h-full overflow-hidden bg-white">
         <div className="flex-1 flex items-center justify-center">
           <div className="text-gray-500">Loading session...</div>
         </div>
@@ -736,202 +534,352 @@ const ChatInterface = ({ sessionId, tools, onToolsChange, onDocumentsUpdate }) =
         </div>
       )}
 
+      {/* Header section with error messages and status indicators */}
       <div className="p-4 flex-shrink-0">
-        {error && <div className="text-red-600 font-semibold mb-2">{error}</div>}
-       
-        {/* Web search status indicator */}
+        {error && (
+          <Alert
+            message={error}
+            type="error"
+            showIcon
+            className="mb-2"
+          />
+        )}
+
         {tools.webSearch && (
-          <div className="mb-2 p-2 bg-green-50 rounded-lg border border-green-200">
-            <div className="text-sm text-green-700 font-medium">
-              🌐 Web Search: Enabled
+          <Card size="small" className="mb-2" bordered>
+            <div className="flex items-center gap-2">
+              <SearchOutlined className="text-green-600" />
+              <div>
+                <Text strong>Web Search Enabled</Text>
+                <div className="text-xs text-gray-600">
+                  Messages will include web search results when relevant
+                </div>
+              </div>
             </div>
-            <div className="text-xs text-green-600 mt-1">
-              All messages will include web search results
-            </div>
-          </div>
+          </Card>
         )}
 
-        {/* Document search status indicator */}
         {tools.documentSearch && (
-          <div className="mb-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
-            <div className="text-sm text-blue-700 font-medium">
-              📄 Document Search: Enabled
+          <Card size="small" className="mb-2" bordered>
+            <div className="flex items-center gap-2">
+              <FileTextOutlined className="text-blue-600" />
+              <div>
+                <Text strong>Document Search Enabled</Text>
+                <div className="text-xs text-gray-600">
+                  Messages will search through uploaded documents
+                </div>
+              </div>
             </div>
-            <div className="text-xs text-blue-600 mt-1">
-              Messages will search through uploaded documents
-            </div>
-          </div>
+          </Card>
         )}
 
-        {documents.length > 0 && (
-          <div className="mb-2 p-2 bg-blue-50 rounded-lg border">
-            <div className="text-sm text-blue-700 font-medium">
-              📄 Documents in this session: {documents.length}
+        {tools.chainOfThought && (
+          <Card size="small" className="mb-2" bordered>
+            <div className="flex items-center gap-2">
+              <ThunderboltOutlined className="text-purple-600" />
+              <div>
+                <Text strong>Chain of Thought Enabled</Text>
+                <div className="text-xs text-gray-600">
+                  AI will show its reasoning process
+                </div>
+              </div>
             </div>
-            <div className="text-xs text-blue-600 mt-1">
-              {documents.map(doc => doc.filename).join(", ")}
+          </Card>
+        )}
+
+        {tools.insights && (
+          <Card size="small" className="mb-2" bordered>
+            <div className="flex items-center gap-2">
+              <BulbOutlined className="text-orange-600" />
+              <div>
+                <Text strong>Insights Enabled</Text>
+                <div className="text-xs text-gray-600">
+                  AI will generate insights and analysis
+                </div>
+              </div>
             </div>
+          </Card>
+        )}
+
+        {selectedFiles.length > 0 && (
+          <Card size="small" className="mb-2" bordered title={`Selected Files (${selectedFiles.length})`}>
+            {selectedFiles.map((file, index) => (
+              <div key={index} className="flex items-center justify-between py-1">
+                <Text ellipsis className="flex-1">{file.name}</Text>
+                <div className="flex items-center gap-2">
+                  <Tag color="blue">{(file.size / 1024).toFixed(1)} KB</Tag>
+                  <Button
+                    type="text"
+                    danger
+                    icon={<CloseOutlined />}
+                    size="small"
+                    onClick={() => removeSelectedFile(index)}
+                    disabled={loading || summarizing}
+                  />
+                </div>
+              </div>
+            ))}
+          </Card>
+        )}
+
+        {summarizing && (
+          <div className="mb-2">
+            <Spin indicator={<LoadingOutlined style={{ fontSize: 24 }} spin />} />
+            <Text className="ml-2">Generating summary...</Text>
           </div>
         )}
       </div>
 
+      {/* Messages area */}
       <div className="flex-1 overflow-auto space-y-4 pr-2 px-4 mb-4">
-        {messages.length === 0 && !loading && (
-          <div className="text-gray-500 text-center py-8">
-            <div className="text-lg mb-2">No messages yet.</div>
-            <div className="text-sm">
-              Drag and drop files here or use the upload button below
-            </div>
-            <div className="text-xs mt-2 text-gray-400">
-              Try: "Search the web for latest AI news" or "Search my documents for..."
-            </div>
+        {messages.length === 0 && !loading ? (
+          <div className="text-center py-8">
+            <Card bordered={false}>
+              <Text type="secondary">
+                <div className="text-lg mb-2">No messages yet</div>
+                <div className="text-sm">
+                  Drag and drop files here or use the upload button below
+                </div>
+              </Text>
+            </Card>
           </div>
+        ) : (
+          messages.map((msg, i) => (
+            <div key={msg.id || i} className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}>
+              <Card
+                size="small"
+                className={`max-w-[75%] ${msg.sender === "user" ? "bg-blue-50" : "bg-white"}`}
+                bordered={msg.sender !== "user"}
+              >
+                <ReactMarkdown
+                  components={{
+                    a: ({ node, href, children, ...props }) => (
+                      <a
+                        {...props}
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 underline hover:text-blue-800 cursor-pointer font-medium"
+                        onClick={(e) => {
+                          if (href) {
+                            e.preventDefault();
+                            window.open(href, '_blank', 'noopener,noreferrer');
+                          }
+                        }}
+                      >
+                        {children}
+                      </a>
+                    ),
+                    p: ({ node, ...props }) => <p {...props} className="mb-2 last:mb-0" />,
+                    strong: ({ node, ...props }) => <strong {...props} className="font-semibold" />,
+                    em: ({ node, ...props }) => <em {...props} className="italic" />,
+                    code: ({ node, inline, ...props }) =>
+                      inline ? (
+                        <code {...props} className="bg-gray-200 px-1 py-0.5 rounded text-sm font-mono" />
+                      ) : (
+                        <code {...props} className="block bg-gray-200 p-2 rounded text-sm font-mono overflow-x-auto" />
+                      ),
+                    blockquote: ({ node, ...props }) => (
+                      <blockquote {...props} className="border-l-4 border-gray-300 pl-4 italic text-gray-600" />
+                    ),
+                    h1: ({ node, ...props }) => <h1 {...props} className="text-xl font-bold mb-2" />,
+                    h2: ({ node, ...props }) => <h2 {...props} className="text-lg font-bold mb-2" />,
+                    h3: ({ node, ...props }) => <h3 {...props} className="text-md font-bold mb-2" />,
+                    ul: ({ node, ...props }) => <ul {...props} className="list-disc list-inside mb-2" />,
+                    ol: ({ node, ...props }) => <ol {...props} className="list-decimal list-inside mb-2" />,
+                    li: ({ node, ...props }) => <li {...props} className="mb-1" />
+                  }}
+                >
+                  {msg.content}
+                </ReactMarkdown>
+
+                {/* Display Chain of Thought reasoning if present */}
+                {msg.reasoning_output && (
+                  <Collapse className="mt-3" ghost>
+                    <Panel 
+                      header={
+                        <div className="flex items-center gap-2">
+                          <ThunderboltOutlined className="text-purple-600" />
+                          <Text strong className="text-purple-800">Chain of Thought Reasoning</Text>
+                        </div>
+                      } 
+                      key="1"
+                    >
+                      <div className="p-3 bg-purple-50 border border-purple-200 rounded">
+                        <ReactMarkdown className="text-sm text-gray-700">
+                          {msg.reasoning_output}
+                        </ReactMarkdown>
+                      </div>
+                    </Panel>
+                  </Collapse>
+                )}
+
+                {/* Display insights if present */}
+                {msg.insights && (
+                  <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded">
+                    <div className="flex items-center gap-2 mb-2">
+                      <BulbOutlined className="text-orange-600" />
+                      <Text strong className="text-orange-800">Insights</Text>
+                    </div>
+                    {typeof msg.insights === 'string' ? (
+                      <Text className="text-sm text-gray-700">{msg.insights}</Text>
+                    ) : (
+                      <div className="text-sm text-gray-700">
+                        {msg.insights.summary && (
+                          <div className="mb-2">
+                            <Text strong>Summary: </Text>
+                            <Text>{msg.insights.summary}</Text>
+                          </div>
+                        )}
+                        {msg.insights.key_patterns && msg.insights.key_patterns.length > 0 && (
+                          <div className="mb-2">
+                            <Text strong>Key Patterns:</Text>
+                            <ul className="list-disc list-inside mt-1">
+                              {msg.insights.key_patterns.slice(0, 5).map((pattern, index) => (
+                                <li key={index}>{pattern.term} (frequency: {pattern.frequency})</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {msg.insights.trends && msg.insights.trends.length > 0 && (
+                          <div className="mb-2">
+                            <Text strong>Trends:</Text>
+                            <ul className="list-disc list-inside mt-1">
+                              {msg.insights.trends.slice(0, 3).map((trend, index) => (
+                                <li key={index}>{trend.type}: {trend.indicator}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {msg.insights.recommendations && msg.insights.recommendations.length > 0 && (
+                          <div className="mb-2">
+                            <Text strong>Recommendations:</Text>
+                            <ul className="list-disc list-inside mt-1">
+                              {msg.insights.recommendations.slice(0, 3).map((rec, index) => (
+                                <li key={index}>{rec}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {msg.insights.confidence_score && (
+                          <div>
+                            <Text strong>Confidence: </Text>
+                            <Tag color={msg.insights.confidence_score > 0.7 ? 'green' : msg.insights.confidence_score > 0.4 ? 'orange' : 'red'}>
+                              {Math.round(msg.insights.confidence_score * 100)}%
+                            </Tag>
+                          </div>
+                        )}
+                        {/* Display visualizations if present */}
+                        {msg.insights.visualizations && msg.insights.visualizations.length > 0 && (
+                          <div className="mt-3">
+                            <Text strong>Visualizations:</Text>
+                            <div className="mt-2 space-y-2">
+                              {msg.insights.visualizations.map((viz, index) => (
+                                <div key={index} className="border rounded p-2">
+                                  <Text strong className="text-xs">{viz.title}</Text>
+                                  {viz.data && (
+                                    <img 
+                                      src={`data:image/png;base64,${viz.data}`} 
+                                      alt={viz.title}
+                                      className="max-w-full h-auto mt-1 rounded"
+                                    />
+                                  )}
+                                  {viz.description && (
+                                    <div className="text-xs text-gray-600 mt-1">{viz.description}</div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {msg.metadata && (
+                  <div className="mt-2">
+                    {msg.metadata.sources_used?.length > 0 && (
+                      <Tag color="blue">Sources: {msg.metadata.sources_used.length}</Tag>
+                    )}
+                    {msg.metadata.processing_time && (
+                      <Tag color="green">{msg.metadata.processing_time}ms</Tag>
+                    )}
+                  </div>
+                )}
+
+              </Card>
+            </div>
+          ))
         )}
 
-        {messages.map((msg, i) => (
-          <div key={msg.id || i} className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}>
-            <div className={`p-3 rounded-xl whitespace-pre-wrap max-w-[75%] ${
-              msg.sender === "user"
-                ? "bg-blue-100 text-right"
-                : msg.isDocumentMessage
-                ? "bg-green-50 text-left border border-green-200"
-                : msg.isSummaryMessage
-                ? "bg-yellow-50 text-left border border-yellow-200"
-                : msg.isSearchMessage || msg.isSearchResultMessage
-                ? "bg-purple-50 text-left border border-purple-200"
-                : msg.isDocumentSearchMessage || msg.isDocumentSearchResultMessage
-                ? "bg-orange-50 text-left border border-orange-200"
-                : "bg-gray-100 text-left"
-            }`}>
-              <ReactMarkdown
-                components={{
-                  a: ({node, ...props}) => (
-                    <a {...props} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline" />
-                  )
-                }}
-              >
-                {msg.content}
-              </ReactMarkdown>
-             
-              {msg.reasoning_output && (
-                <div className="mt-2 text-xs text-gray-500 border-t pt-2">
-                  <strong>Reasoning:</strong> {msg.reasoning_output}
-                </div>
-              )}
-             
-              {msg.isDocumentMessage && (
-                <div className="mt-1 text-xs text-green-600 italic">
-                  Document ready for AI queries
-                </div>
-              )}
-             
-              {msg.isSummaryMessage && (
-                <div className="mt-1 text-xs text-yellow-600 italic">
-                  AI-generated summary
-                </div>
-              )}
-             
-              {(msg.isSearchMessage || msg.isSearchResultMessage) && (
-                <div className="mt-1 text-xs text-purple-600 italic">
-                  {msg.isSearchResultMessage ? "Web search results" : "Web search in progress"}
-                </div>
-              )}
-
-              {(msg.isDocumentSearchMessage || msg.isDocumentSearchResultMessage) && (
-                <div className="mt-1 text-xs text-orange-600 italic">
-                  {msg.isDocumentSearchResultMessage ? "Document search results" : "Document search in progress"}
-                </div>
-              )}
-            </div>
+        {loading && (
+          <div className="flex justify-center">
+            <Spin indicator={<LoadingOutlined style={{ fontSize: 24 }} spin />} />
           </div>
-        ))}
+        )}
 
         <div ref={bottomRef} />
       </div>
 
-      <div className="p-4 flex-shrink-0">
-        {/* Selected files preview */}
-        {selectedFiles.length > 0 && (
-          <div className="mb-2 p-2 bg-gray-50 rounded-lg border">
-            <div className="text-sm text-gray-700 font-medium mb-2">
-              Selected files ({selectedFiles.length}):
-            </div>
-            <div className="space-y-1">
-              {selectedFiles.map((file, index) => (
-                <div key={index} className="flex items-center justify-between text-xs bg-white p-2 rounded border">
-                  <span className="flex-1 truncate">{file.name}</span>
-                  <span className="mx-2 text-gray-500">
-                    ({(file.size / 1024).toFixed(1)} KB)
-                  </span>
-                  <button
-                    onClick={() => removeSelectedFile(index)}
-                    className="text-red-500 hover:text-red-700 ml-2"
-                    disabled={loading || summarizing || isSearching}
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="flex items-center gap-2">
-          <input
-            className="flex-1 border rounded-lg px-3 py-2"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !loading && !summarizing && !isSearching && handleSend()}
-            placeholder={
-              tools.webSearch && tools.documentSearch
-                ? "Type your message (web & document search enabled)..."
-                : tools.webSearch
-                ? "Type your message (web search enabled)..."
-                : tools.documentSearch && documents.length > 0
-                ? "Type your message (document search enabled)..."
-                : "Type your message or 'search the web for...'"
-            }
-            disabled={loading || summarizing || isSearching}
-          />
-         
-          <label className="bg-gray-200 px-3 py-2 rounded-lg cursor-pointer text-sm hover:bg-gray-300">
-            📎 Upload
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept={ALLOWED_EXTENSIONS.join(",")}
-              onChange={handleFileInputChange}
-              className="hidden"
-              disabled={loading || summarizing || isSearching}
-            />
-          </label>
-
-          <button
-            onClick={handleSend}
-            disabled={loading || summarizing || isSearching || (!input.trim() && selectedFiles.length === 0)}
-            className={`px-4 py-2 rounded-lg ${
-              loading || summarizing || isSearching || (!input.trim() && selectedFiles.length === 0)
-                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                : "bg-blue-500 text-white hover:bg-blue-600"
-            }`}
+      {/* Input area */}
+      <div className="p-4 border-t bg-gray-50 flex-shrink-0">
+        <div className="flex items-end space-x-2">
+          <Upload
+            beforeUpload={() => false}
+            accept={ALLOWED_EXTENSIONS.join(",")}
+            multiple
+            onChange={({ fileList }) => handleFileInputChange({ target: { files: fileList.map(f => f.originFileObj) } })}
+            showUploadList={false}
           >
-            {loading ? "Sending..." : summarizing ? "Summarizing..." : isSearching ? "Searching..." : "Send"}
-          </button>
+            <Button
+              icon={<PaperClipOutlined />}
+              disabled={loading || summarizing}
+              type="primary"
+              ghost
+            />
+          </Upload>
+
+          <div className="flex-1">
+            <TextArea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onPressEnter={(e) => {
+                if (!e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder="Type your message... (Press Enter to send, Shift+Enter for new line)"
+              autoSize={{ minRows: 1, maxRows: 4 }}
+              disabled={loading || summarizing}
+            />
+          </div>
+
+          <Button
+            type="primary"
+            icon={<SendOutlined />}
+            onClick={handleSend}
+            disabled={(!input.trim() && selectedFiles.length === 0) || loading || summarizing}
+            loading={loading}
+          >
+            {loading ? 'Sending...' : 'Send'}
+          </Button>
         </div>
 
-        {/* Status indicators */}
-        {summarizing && (
-          <div className="mt-2 text-sm text-blue-600 animate-pulse">
-            🔄 Generating summary...
+        {/* Helper text */}
+        <div className="mt-2 text-xs text-gray-500">
+          <div className="flex flex-wrap gap-4">
+            <span>💡 Tips:</span>
+            {tools.webSearch && <span>Web search is enabled for all messages</span>}
+            {tools.documentSearch && <span>Document search is enabled for all messages</span>}
+            {tools.chainOfThought && <span>Chain of thought reasoning is enabled</span>}
+            {tools.insights && <span>Insights generation is enabled</span>}
+            {tools.summarization && <span>Use "summarize" to get a summary</span>}
+            <span>Drag & drop files to upload</span>
+            <span>Try: "search the web for latest AI news"</span>
           </div>
-        )}
-       
-        {isSearching && (
-          <div className="mt-2 text-sm text-purple-600 animate-pulse">
-            🔍 Searching...
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );

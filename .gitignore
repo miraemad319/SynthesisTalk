@@ -43,3 +43,4 @@ htmlcov/
 session_data.json
 *.tmp
 *.swp
+node_modules

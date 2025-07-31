@@ -8,12 +8,12 @@ async function postRequest(endpoint, body) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    
+   
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(errorText || `Request to ${endpoint} failed with status ${response.status}`);
     }
-    
+   
     return response.json();
   } catch (error) {
     console.error(`Error in postRequest to ${endpoint}:`, error);
@@ -22,15 +22,58 @@ async function postRequest(endpoint, body) {
 }
 
 // ========== CHAT ==========
-export async function postChat({ message, session_id, enable_reasoning = false, enable_web_search = false, enable_document_search = false, reasoning_type = null }) {
-  return postRequest('/session/chat', {
+export async function postChat({
+  message,
+  session_id,
+  enable_reasoning = false,
+  enable_web_search = false,
+  enable_document_search = false,
+  enable_insights = false,
+  reasoning_type = "hybrid"
+}) {
+  console.log('API: Sending chat request with params:', {
     message,
     session_id,
     enable_reasoning,
     enable_web_search,
     enable_document_search,
-    reasoning_type,
+    enable_insights,
+    reasoning_type
   });
+
+  try {
+    const requestBody = {
+      message,
+      session_id,
+      enable_reasoning,
+      enable_web_search,
+      enable_document_search,
+      enable_insights,
+      reasoning_type,
+    };
+
+    console.log('API: Request body being sent:', requestBody);
+
+    const response = await fetch(`${BASE_URL}/session/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody),
+    });
+   
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('API: Chat request failed:', errorText);
+      throw new Error(errorText || `Request to /session/chat failed with status ${response.status}`);
+    }
+   
+    const result = await response.json();
+    console.log('API: Chat response received:', result);
+    return result;
+
+  } catch (error) {
+    console.error('Error in postChat:', error);
+    throw error;
+  }
 }
 
 // ========== SESSION ==========
@@ -42,12 +85,10 @@ export async function createSession(name) {
         'Content-Type': 'application/json',
       },
     });
-
     if (!res.ok) {
       const errorText = await res.text();
       throw new Error(errorText || `Failed to create session. Status: ${res.status}`);
     }
-
     const result = await res.json();
     console.log("Create session API response:", result); // Debug log
     return result;
@@ -90,7 +131,7 @@ export async function listSessions() {
 export async function renameSession(session_id, new_name) {
   try {
     console.log(`API: Renaming session ${session_id} to "${new_name}"`);
-    
+   
     // Send new_name as a query parameter instead of in the body
     const response = await fetch(`${BASE_URL}/session/${session_id}?new_name=${encodeURIComponent(new_name)}`, {
       method: 'PATCH',
@@ -101,14 +142,13 @@ export async function renameSession(session_id, new_name) {
     });
 
     console.log('Rename response status:', response.status);
-
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-      
+     
       try {
         const errorText = await response.text();
         console.error('Rename API error response text:', errorText);
-        
+       
         try {
           const errorData = JSON.parse(errorText);
           errorMessage = errorData.message || errorData.error || errorData.detail || errorText;
@@ -118,22 +158,22 @@ export async function renameSession(session_id, new_name) {
       } catch (textError) {
         console.error('Could not read error response:', textError);
       }
-      
+     
       throw new Error(errorMessage);
     }
 
     const result = await response.json();
     console.log('Rename API success:', result);
-    
+   
     return result;
-    
+   
   } catch (error) {
     console.error('renameSession API error:', error);
-    
+   
     if (error.name === 'TypeError' && error.message.includes('fetch')) {
       throw new Error('Network error: Unable to connect to server');
     }
-    
+   
     throw error;
   }
 }
@@ -176,9 +216,10 @@ export async function getSessionMessages(session_id) {
       const errorText = await res.text();
       throw new Error(errorText || 'Failed to get messages');
     }
+
     const result = await res.json();
     console.log("Session messages API response for session", session_id, ":", result);
-    
+   
     // Handle different possible response structures from your backend
     if (result && typeof result === 'object') {
       // If it has messages and documents properties
@@ -193,7 +234,7 @@ export async function getSessionMessages(session_id) {
         return { messages: result, documents: [] };
       }
     }
-    
+   
     // Fallback
     return { messages: [], documents: [] };
   } catch (error) {
@@ -215,9 +256,10 @@ export async function getDocuments(session_id) {
       const errorText = await res.text();
       throw new Error(errorText || 'Failed to fetch documents');
     }
+
     const result = await res.json();
     console.log("Documents API response for session", session_id, ":", result);
-    
+   
     // Based on your backend, the response should be an array of documents
     // Each document has: {id, filename, text_preview}
     return Array.isArray(result) ? result : [];
@@ -245,7 +287,6 @@ export async function uploadFiles(session_id, files) {
       method: 'POST',
       body: formData,
     });
-
     if (!res.ok) throw new Error('File upload failed');
     return res.json();
   } catch (error) {
@@ -265,7 +306,6 @@ export async function postSummary({ message_id, format }) {
       method: 'POST',
       body: formData,
     });
-
     if (!res.ok) throw new Error('Summary failed');
     return res.json();
   } catch (error) {
@@ -275,15 +315,30 @@ export async function postSummary({ message_id, format }) {
 }
 
 // ========== SEARCH ==========
-export async function webSearch({ query, search_provider, num_results }) {
-  return postRequest('/web', { query, search_provider, num_results });
-}
+export const webSearch = async (params) => {
+  try {
+    console.log('API: Web search request:', params);
+    const response = await postRequest('/search/web', params);
+    console.log('API: Web search response:', response);
+    return response;
+  } catch (error) {
+    console.error('Web search failed:', error);
+    throw error;
+  }
+};
 
 export async function documentSearch({ query, session_id }) {
   return postRequest('/search/documents', { query, session_id });
 }
 
-export async function combinedSearch({ query, session_id, include_web, include_documents, search_provider = null, web_results_limit = 5 }) {
+export async function combinedSearch({ 
+  query, 
+  session_id, 
+  include_web, 
+  include_documents, 
+  search_provider = null, 
+  web_results_limit = 5 
+}) {
   return postRequest('/combined', {
     query,
     session_id,
@@ -299,16 +354,15 @@ export async function postSearch({ query }) {
   return postRequest('/search', { query });
 }
 
-
 // Fixed exportSession function in api.js
 export async function exportSession(session_id, format = "pdf") {
   try {
     console.log(`API: Exporting session ${session_id} as ${format}`);
-    
+   
     // First, get the session messages to find the latest message ID
     const messagesResponse = await getSessionMessages(session_id);
     const messages = messagesResponse.messages || [];
-    
+   
     if (messages.length === 0) {
       throw new Error("No messages found in this session to export");
     }
