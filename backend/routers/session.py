@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlmodel import Session, select, delete
 from sqlalchemy import text
 from services.db_session import get_session
-from models.db_models import Session as ResearchSession, Message, Document, Embedding
+from models.db_models import Session as ResearchSession, Message, Document, Embedding, Notes
 import logging
 
 # Configure logging
@@ -50,7 +50,7 @@ def rename_session(session_id: int, new_name: str, db: Session = Depends(get_ses
     db.commit()
     return {"message": "Session renamed successfully"}
 
-# Clear all sessions and their related data
+# Clear all sessions and related data
 @router.delete("/session/clear")
 async def clear_all_sessions(request: Request, db: Session = Depends(get_session)):
     # Log the incoming request
@@ -66,6 +66,7 @@ async def clear_all_sessions(request: Request, db: Session = Depends(get_session
         pass
 
     # Delete child data first to avoid foreign key conflicts
+    db.exec(delete(Notes))  # Delete notes first
     db.exec(delete(Message))
     db.exec(delete(Document))
     db.exec(delete(Embedding))
@@ -73,6 +74,7 @@ async def clear_all_sessions(request: Request, db: Session = Depends(get_session
     db.commit()
 
     # Reset the ID sequences for all tables
+    db.exec(text("ALTER SEQUENCE notes_id_seq RESTART WITH 1;"))  # Add this line
     db.exec(text("ALTER SEQUENCE message_id_seq RESTART WITH 1;"))
     db.exec(text("ALTER SEQUENCE document_id_seq RESTART WITH 1;"))
     db.exec(text("ALTER SEQUENCE embedding_id_seq RESTART WITH 1;"))
@@ -81,7 +83,7 @@ async def clear_all_sessions(request: Request, db: Session = Depends(get_session
 
     return {"message": "All sessions and related data cleared"}
 
-# Delete a session and its related data
+# Delete session by ID
 @router.delete("/session/{session_id}")
 def delete_session(session_id: int, db: Session = Depends(get_session)):
     session = db.get(ResearchSession, session_id)
@@ -89,6 +91,15 @@ def delete_session(session_id: int, db: Session = Depends(get_session)):
         return {"error": "Session not found"}
 
     # Delete child data first to avoid foreign key conflicts
+    # First, get all messages in the session to find their IDs
+    messages = db.exec(select(Message).where(Message.session_id == session_id)).all()
+    message_ids = [msg.id for msg in messages]
+    
+    # Delete notes that reference these messages
+    if message_ids:
+        db.exec(delete(Notes).where(Notes.message_id.in_(message_ids)))
+    
+    # Now delete the other related data
     db.exec(delete(Message).where(Message.session_id == session_id))
     db.exec(delete(Document).where(Document.session_id == session_id))
     db.exec(delete(Embedding).where(Embedding.session_id == session_id))
@@ -96,4 +107,3 @@ def delete_session(session_id: int, db: Session = Depends(get_session)):
     db.commit()
 
     return {"message": "Session and related data deleted"}
-

@@ -67,6 +67,7 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
     """
     Handle user messages and generate bot responses with optional reasoning.
     """
+    tool_calls_made = [] # Initialize tool calls list
     try:
         # Default reasoning_type to 'auto' (Hybrid) if enable_reasoning is True and reasoning_type is not provided
         if request.enable_reasoning and not request.reasoning_type:
@@ -135,6 +136,15 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
                 user_message=request.message,
                 reasoning_type=request.reasoning_type
             )
+            # Parse tool calls from reasoning output
+            import re
+            if context_result.get("reasoning"):
+                tool_call_pattern = r"Executing tool: (\w+)"
+                tool_calls = re.findall(tool_call_pattern, context_result.get("reasoning", ""))
+                if tool_calls:
+                    logger.info(f"Found tool calls in reasoning: {tool_calls}")
+                    tool_calls_made = [{"tool": tool} for tool in tool_calls]
+
         else:
             context_builder = ContextBuilder(db, enable_reasoning=False)
             context_result = await context_builder.build_context(
@@ -309,9 +319,9 @@ async def chat_endpoint(request: ChatRequest, db: Session = Depends(get_session)
                 success=True,
                 response=bot_message_content,
                 session_id=request.session_id,
-                tool_calls_made=context_result["metadata"].get("tool_calls", []),
-                reasoning_output=context_result.get("reasoning"),  # This should contain the actual reasoning text
-                question_type=context_result.get("question_type").value if context_result.get("question_type") else None,
+                tool_calls_made=tool_calls_made if tool_calls_made else [],
+                reasoning_output=context_result.get("reasoning", None),  # This should contain the actual reasoning text
+                question_type=context_result.get("question_type", None).value if context_result.get("question_type") else None,
                 insights=insights_data,
                 visualizations=visualizations, 
                 metadata={
