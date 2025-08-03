@@ -1,19 +1,25 @@
+/* Enhanced App.css - Professional styling with Ant Design integration */
+
+/* Root container - removed max-width and centering for full app layout */
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
 }
 
+/* Keep your logo animations */
 .logo {
   height: 6em;
   padding: 1.5em;
   will-change: filter;
   transition: filter 300ms;
 }
+
 .logo:hover {
   filter: drop-shadow(0 0 2em #646cffaa);
 }
+
 .logo.react:hover {
   filter: drop-shadow(0 0 2em #61dafbaa);
 }
@@ -33,69 +39,136 @@
   }
 }
 
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
-}
-
-/* —— Layout grid —— */
+/* Enhanced layout grid with modern styling */
 .app-container {
   display: grid;
-  grid-template-columns: 250px 1fr 250px;
+  grid-template-columns: 280px 1fr 320px;
   height: 100vh;
   overflow: hidden;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  gap: 1px; /* Creates subtle separators */
 }
 
-/* —— Sidebars —— */
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .app-container {
+    background: linear-gradient(135deg, #1a1a1a 0%, #2d3748 100%);
+  }
+}
+
+/* Enhanced Sidebar Styling */
 .sidebar {
-  background-color: #f4f4f4;
-  padding: 1rem;
-  border-right: 1px solid #ccc;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  padding: 1.5rem;
+  border-right: 1px solid rgba(0, 0, 0, 0.08);
   overflow-y: auto;
+  box-shadow: 2px 0 20px rgba(0, 0, 0, 0.08);
+  position: relative;
 }
 
+@media (prefers-color-scheme: dark) {
+  .sidebar {
+    background: rgba(26, 32, 44, 0.95);
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 2px 0 20px rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* Enhanced Tool Panel */
 .tool-panel {
-  background-color: #f9f9f9;
-  padding: 1rem;
-  border-left: 1px solid #ccc;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  padding: 1.5rem;
+  border-left: 1px solid rgba(0, 0, 0, 0.08);
   overflow-y: auto;
-  min-width: 250px;
-  max-width: 300px;
+  min-width: 320px;
+  max-width: 350px;
+  box-shadow: -2px 0 20px rgba(0, 0, 0, 0.08);
+  position: relative;
 }
 
-/* —— Enhanced Tool Panel Styles —— */
+@media (prefers-color-scheme: dark) {
+  .tool-panel {
+    background: rgba(26, 32, 44, 0.95);
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: -2px 0 20px rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* Enhanced Tool Panel Styles */
 .tool-panel h2 {
-  color: #374151;
-  font-size: 1.125rem;
-  font-weight: 600;
-  margin-bottom: 1rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid #e5e7eb;
+  color: #1f2937;
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid #e5e7eb;
   text-align: left;
+  position: relative;
 }
 
+.tool-panel h2::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 40px;
+  height: 2px;
+  background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+  border-radius: 1px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .tool-panel h2 {
+    color: #f9fafb;
+    border-bottom-color: #374151;
+  }
+}
+
+/* Enhanced checkbox and radio styling */
 .tool-panel input[type="checkbox"],
 .tool-panel input[type="radio"] {
-  margin-right: 0.5rem;
+  margin-right: 0.75rem;
   accent-color: #3b82f6;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
 }
 
 .tool-panel label {
   display: flex;
   align-items: center;
-  padding: 0.25rem 0;
-  transition: color 0.2s ease;
+  padding: 0.5rem 0.75rem;
+  margin: 0.25rem 0;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
   text-align: left;
+  border-radius: 8px;
+  font-weight: 500;
+  color: #374151;
+}
+
+@media (prefers-color-scheme: dark) {
+  .tool-panel label {
+    color: #d1d5db;
+  }
 }
 
 .tool-panel label:hover {
-  color: #3b82f6;
+  background-color: rgba(59, 130, 246, 0.1);
+  color: #1d4ed8;
+  transform: translateX(2px);
 }
 
+@media (prefers-color-scheme: dark) {
+  .tool-panel label:hover {
+    background-color: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
+  }
+}
+
+/* Spacing utilities */
 .tool-panel .space-y-3 > * + * {
   margin-top: 0.75rem;
 }
@@ -104,112 +177,300 @@
   margin-top: 0.5rem;
 }
 
-/* Summary format selection styling */
+/* Enhanced summary format selection */
 .tool-panel .bg-blue-50 {
-  background-color: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 0.5rem;
-  padding: 0.75rem;
-  margin-top: 1rem;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  border: 2px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 1rem;
+  margin-top: 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.tool-panel .bg-blue-50::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+}
+
+@media (prefers-color-scheme: dark) {
+  .tool-panel .bg-blue-50 {
+    background: linear-gradient(135deg, #1e3a8a, #1e40af);
+    border-color: #3b82f6;
+  }
 }
 
 .tool-panel .text-blue-800 {
   color: #1e40af;
+  font-weight: 600;
 }
 
 .tool-panel .text-blue-700 {
   color: #1d4ed8;
+  font-weight: 500;
 }
 
 .tool-panel .text-blue-600 {
   color: #2563eb;
 }
 
+@media (prefers-color-scheme: dark) {
+  .tool-panel .text-blue-800 {
+    color: #93c5fd;
+  }
+  .tool-panel .text-blue-700 {
+    color: #93c5fd;
+  }
+  .tool-panel .text-blue-600 {
+    color: #60a5fa;
+  }
+}
+
+/* Enhanced button styling */
 .tool-panel button {
-  background-color: #3b82f6;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
   color: white;
   border: none;
-  border-radius: 0.375rem;
-  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
   font-size: 0.875rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   width: 100%;
-  margin-top: 0.75rem;
+  margin-top: 1rem;
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.tool-panel button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
 }
 
 .tool-panel button:hover {
-  background-color: #2563eb;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);
+}
+
+.tool-panel button:hover::before {
+  left: 100%;
+}
+
+.tool-panel button:active {
+  transform: translateY(0);
 }
 
 .tool-panel button:disabled {
-  background-color: #9ca3af;
+  background: linear-gradient(135deg, #9ca3af, #6b7280);
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
-/* —— Chat panel tweaks —— */
+/* Enhanced chat panel */
 .chat-panel {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  padding: 1rem;    /* added for inner spacing */
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  position: relative;
 }
 
-/* —— Message styling enhancements —— */
+@media (prefers-color-scheme: dark) {
+  .chat-panel {
+    background: rgba(17, 24, 39, 0.9);
+  }
+}
+
+/* Enhanced message styling */
 .message.summary {
-  background-color: #fef3c7 !important;
+  background: linear-gradient(135deg, #fef3c7, #fde68a) !important;
   border-left: 4px solid #f59e0b;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.2);
+  transition: all 0.3s ease;
+}
+
+.message.summary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(245, 158, 11, 0.3);
 }
 
 .message.document {
-  background-color: #ecfdf5 !important;
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5) !important;
   border-left: 4px solid #10b981;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.2);
+  transition: all 0.3s ease;
 }
 
-/* —— Animation for summarizing state —— */
+.message.document:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(16, 185, 129, 0.3);
+}
+
+/* Enhanced pulse animation */
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  0%, 100% { 
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% { 
+    opacity: 0.7;
+    transform: scale(1.02);
+  }
 }
 
 .animate-pulse {
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-/* —— Hide native file input —— */
+/* Enhanced scrollbar styling */
+.sidebar::-webkit-scrollbar,
+.tool-panel::-webkit-scrollbar,
+.chat-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sidebar::-webkit-scrollbar-track,
+.tool-panel::-webkit-scrollbar-track,
+.chat-panel::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+}
+
+.sidebar::-webkit-scrollbar-thumb,
+.tool-panel::-webkit-scrollbar-thumb,
+.chat-panel::-webkit-scrollbar-thumb {
+  background: rgba(59, 130, 246, 0.3);
+  border-radius: 4px;
+  transition: background 0.3s ease;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover,
+.tool-panel::-webkit-scrollbar-thumb:hover,
+.chat-panel::-webkit-scrollbar-thumb:hover {
+  background: rgba(59, 130, 246, 0.5);
+}
+
+/* File input styling */
 input[type="file"] {
   display: none;
 }
 
-/* —— Utility classes for better spacing —— */
-.text-left {
-  text-align: left;
+/* Enhanced utility classes */
+.text-left { text-align: left; }
+.text-center { text-align: center; }
+.font-medium { font-weight: 500; }
+.font-semibold { font-weight: 600; }
+.text-sm { font-size: 0.875rem; }
+.text-xs { font-size: 0.75rem; }
+.capitalize { text-transform: capitalize; }
+.italic { font-style: italic; }
+
+/* Responsive design */
+@media (max-width: 1200px) {
+  .app-container {
+    grid-template-columns: 250px 1fr 280px;
+  }
+  
+  .tool-panel {
+    min-width: 280px;
+    max-width: 320px;
+  }
 }
 
-.text-center {
-  text-align: center;
+@media (max-width: 768px) {
+  .app-container {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr auto;
+  }
+  
+  .sidebar,
+  .tool-panel {
+    max-height: 200px;
+    padding: 1rem;
+  }
+  
+  .chat-panel {
+    padding: 1rem;
+  }
 }
 
-.font-medium {
-  font-weight: 500;
+/* Focus states for accessibility */
+.tool-panel button:focus,
+.tool-panel input:focus,
+.tool-panel label:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
 }
 
-.font-semibold {
-  font-weight: 600;
+/* Loading states */
+.loading {
+  opacity: 0.6;
+  pointer-events: none;
 }
 
-.text-sm {
-  font-size: 0.875rem;
+/* Smooth transitions for theme changes */
+* {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
-.text-xs {
-  font-size: 0.75rem;
+/* Add some subtle animations */
+@keyframes slideInFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
-.capitalize {
-  text-transform: capitalize;
+@keyframes slideInFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
-.italic {
-  font-style: italic;
+.sidebar {
+  animation: slideInFromLeft 0.5s ease-out;
+}
+
+.tool-panel {
+  animation: slideInFromRight 0.5s ease-out;
+}
+
+.chat-panel {
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }

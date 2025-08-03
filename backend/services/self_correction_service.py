@@ -12,6 +12,7 @@ logger = logging.getLogger("self_correction")
 async def self_correct(query: str, initial_response: str, task_type: str = "general", max_iterations: int = 2) -> str:
     """
     Enhanced self-correction mechanism for LLM responses with iterative refinement.
+    Preserves structure for React reasoning while applying sophisticated evaluation for other content.
 
     Args:
         query (str): The original user query.
@@ -23,33 +24,75 @@ async def self_correct(query: str, initial_response: str, task_type: str = "gene
         str: The refined response.
     """
     try:
-        current_response = initial_response
-        iteration = 0
+        logger.info(f"Self-correction called for {task_type}, content length: {len(initial_response)}")
         
-        while iteration < max_iterations:
-            # Step 1: Evaluate the current response
-            evaluation = await evaluate_response_enhanced(query, current_response, task_type)
-            logger.info(f"Iteration {iteration + 1} - Evaluation results: {evaluation}")
-
-            # Step 2: If response is acceptable, return it
-            if evaluation["is_acceptable"]:
-                logger.info(f"Response accepted after {iteration + 1} iteration(s)")
-                return current_response
-
-            # Step 3: Refine the response
-            logger.info(f"Refining response (iteration {iteration + 1})...")
-            refined_response = await refine_response_enhanced(query, current_response, evaluation, task_type)
+        # Special handling for ReAct reasoning - detect if this is React format
+        if task_type == "reasoning" and ("Thought " in initial_response or "Action " in initial_response):
+            logger.info("Detected ReAct format - using specialized correction to preserve structure")
+            # Add special instructions to preserve React structure
+            correction_prompt = f"""
+            I need you to improve this {task_type} while preserving its exact structure.
+            This is a ReAct reasoning format with Thoughts, Actions, and Observations.
+            DO NOT change the structure or remove any of the Thought/Action/Observation sections.
+            Only enhance the content within each section.
             
-            # Check if refinement actually improved the response
-            if refined_response != current_response:
-                current_response = refined_response
-            else:
-                logger.info("No improvement detected, stopping refinement")
-                break
+            Original query: {query}
+            
+            Original {task_type}:
+            {initial_response}
+            
+            Improved {task_type} (keep the same structure):
+            """
+            
+            try:
+                # Get improved response directly from LLM without iterative refinement
+                from services.llm_service import get_llm_response
+                improved_response = await get_llm_response(correction_prompt)
+                logger.info(f"Got LLM response for ReAct correction, length: {len(improved_response) if improved_response else 0}")
                 
-            iteration += 1
+                # If response is empty or error, return original
+                if not improved_response or "error" in improved_response.lower():
+                    logger.warning(f"ReAct correction failed, returning original")
+                    return initial_response
+                
+                # ADD THIS LINE: Return the improved response
+                return improved_response.strip()
 
-        return current_response
+            except Exception as e:
+                logger.error(f"Error in ReAct correction: {e}")
+                return initial_response  # Return original on exception
+        
+        # For non-ReAct formats, use the sophisticated iterative refinement
+        else:
+            logger.info("Using iterative refinement for standard correction")
+            current_response = initial_response
+            iteration = 0
+            
+            while iteration < max_iterations:
+                # Step 1: Evaluate the current response
+                evaluation = await evaluate_response_enhanced(query, current_response, task_type)
+                logger.info(f"Iteration {iteration + 1} - Evaluation results: {evaluation}")
+
+                # Step 2: If response is acceptable, return it
+                if evaluation["is_acceptable"]:
+                    logger.info(f"Response accepted after {iteration + 1} iteration(s)")
+                    return current_response
+
+                # Step 3: Refine the response
+                logger.info(f"Refining response (iteration {iteration + 1})...")
+                refined_response = await refine_response_enhanced(query, current_response, evaluation, task_type)
+                
+                # Check if refinement actually improved the response
+                if refined_response != current_response:
+                    current_response = refined_response
+                else:
+                    logger.info("No improvement detected, stopping refinement")
+                    break
+                    
+                iteration += 1
+
+            logger.info(f"Returning response after {iteration} iterations")
+            return current_response
 
     except Exception as e:
         logger.error(f"Error in self-correction: {e}")

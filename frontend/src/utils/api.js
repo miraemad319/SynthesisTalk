@@ -69,7 +69,6 @@ export async function postChat({
     const result = await response.json();
     console.log('API: Chat response received:', result);
     return result;
-
   } catch (error) {
     console.error('Error in postChat:', error);
     throw error;
@@ -142,6 +141,7 @@ export async function renameSession(session_id, new_name) {
     });
 
     console.log('Rename response status:', response.status);
+
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
      
@@ -216,7 +216,6 @@ export async function getSessionMessages(session_id) {
       const errorText = await res.text();
       throw new Error(errorText || 'Failed to get messages');
     }
-
     const result = await res.json();
     console.log("Session messages API response for session", session_id, ":", result);
    
@@ -256,7 +255,6 @@ export async function getDocuments(session_id) {
       const errorText = await res.text();
       throw new Error(errorText || 'Failed to fetch documents');
     }
-
     const result = await res.json();
     console.log("Documents API response for session", session_id, ":", result);
    
@@ -295,25 +293,6 @@ export async function uploadFiles(session_id, files) {
   }
 }
 
-// ========== SUMMARY ==========
-export async function postSummary({ message_id, format }) {
-  try {
-    const formData = new FormData();
-    formData.append('message_id', message_id);
-    formData.append('format', format);
-
-    const res = await fetch(`${BASE_URL}/summarize`, {
-      method: 'POST',
-      body: formData,
-    });
-    if (!res.ok) throw new Error('Summary failed');
-    return res.json();
-  } catch (error) {
-    console.error("Error in postSummary:", error);
-    throw error;
-  }
-}
-
 // ========== SEARCH ==========
 export const webSearch = async (params) => {
   try {
@@ -331,13 +310,13 @@ export async function documentSearch({ query, session_id }) {
   return postRequest('/search/documents', { query, session_id });
 }
 
-export async function combinedSearch({ 
-  query, 
-  session_id, 
-  include_web, 
-  include_documents, 
-  search_provider = null, 
-  web_results_limit = 5 
+export async function combinedSearch({
+  query,
+  session_id,
+  include_web,
+  include_documents,
+  search_provider = null,
+  web_results_limit = 5
 }) {
   return postRequest('/combined', {
     query,

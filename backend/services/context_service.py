@@ -18,6 +18,7 @@ from services.reasoning_service import (
     hybrid_reasoning,
     classify_question
 )
+from services.self_correction_service import self_correct
 from services.visualization_service import generate_insights
 from utils.text_utils import trim_text_to_token_limit
 import asyncio
@@ -128,7 +129,7 @@ class ContextBuilder:
             # 6. Apply reasoning if enabled
             reasoning_output = None
             if self.enable_reasoning and reasoning_type:
-                reasoning_output = self._apply_reasoning(
+                reasoning_output = await self._apply_reasoning(
                     final_context, user_message, reasoning_type, question_type
                 )
                 metadata["reasoning_output"] = "Applied"
@@ -329,14 +330,13 @@ class ContextBuilder:
     ) -> str:
         """Apply selected reasoning technique with self-correction for ALL types"""
         try:
-            available_tools = ["web_search", "document_search", "calculation", "analysis"]
-            
+            available_tools = ["web_search", "document_search", "calculation", "analysis"]                
             logger.info(f"Applying reasoning type: {reasoning_type.value}")
 
             if reasoning_type == ReasoningType.CHAIN_OF_THOUGHT:
-                # Generate initial CoT reasoning
-                initial_reasoning = chain_of_thought_reasoning(context, user_message, question_type)
-                
+                # Generate initial CoT reasoning with DB access for tool execution
+                initial_reasoning = await chain_of_thought_reasoning(context, user_message, question_type, self.db)
+                    
                 # Apply self-correction
                 corrected_reasoning = await self_correct(
                     query=f"Context: {context}\nQuestion: {user_message}",
@@ -345,11 +345,11 @@ class ContextBuilder:
                 )
                 logger.info("Applied self-correction to CoT reasoning")
                 return corrected_reasoning
-                
+                    
             elif reasoning_type == ReasoningType.REACT:
-                # Generate initial ReAct reasoning
-                initial_reasoning = react_reasoning(context, user_message, available_tools)
-                
+                # Generate initial ReAct reasoning with DB session for tool execution
+                initial_reasoning = await react_reasoning(context, user_message, available_tools, self.db)
+                    
                 # Apply self-correction
                 corrected_reasoning = await self_correct(
                     query=f"Context: {context}\nQuestion: {user_message}\nTools: {available_tools}",
@@ -358,11 +358,11 @@ class ContextBuilder:
                 )
                 logger.info("Applied self-correction to ReAct reasoning")
                 return corrected_reasoning
-                
+
             elif reasoning_type == ReasoningType.HYBRID:
-                # Generate initial Hybrid reasoning
-                initial_reasoning = hybrid_reasoning(context, user_message, available_tools)
-                
+                # Generate initial Hybrid reasoning with DB access
+                initial_reasoning = await hybrid_reasoning(context, user_message, available_tools, self.db)
+
                 # Apply self-correction
                 corrected_reasoning = await self_correct(
                     query=f"Context: {context}\nQuestion: {user_message}\nTools: {available_tools}",
@@ -371,18 +371,18 @@ class ContextBuilder:
                 )
                 logger.info("Applied self-correction to Hybrid reasoning")
                 return corrected_reasoning
-                
+                    
             else:
                 logger.warning(f"Unknown reasoning type: {reasoning_type}")
                 # Fallback to CoT with correction
-                initial_reasoning = chain_of_thought_reasoning(context, user_message, question_type)
+                initial_reasoning = await chain_of_thought_reasoning(context, user_message, question_type, self.db)
                 corrected_reasoning = await self_correct(
                     query=f"Context: {context}\nQuestion: {user_message}",
                     initial_response=initial_reasoning,
                     task_type="reasoning"
                 )
                 return corrected_reasoning
-            
+                    
         except Exception as e:
             logger.error(f"Failed to apply reasoning: {e}")
             return f"Reasoning Error: {str(e)}"
@@ -420,19 +420,43 @@ class ContextBuilder:
 
 # Enhanced functions with reasoning support
 async def build_context_with_reasoning(
-    db: Session, 
-    session_id: int, 
+    db: Session,
+    session_id: int,
     user_message: str,
-    reasoning_type: ReasoningType = ReasoningType.HYBRID,
+    reasoning_type: ReasoningType = ReasoningType.CHAIN_OF_THOUGHT
 ) -> Dict[str, Any]:
     """
-    Build comprehensive context with reasoning output
+    Build context with reasoning applied.
     """
-    builder = ContextBuilder(db, enable_reasoning=True, reasoning_type=reasoning_type)
-    return await builder.build_context(
-        session_id,
-        user_message
-    )
+    try:
+        # Create context builder with reasoning enabled
+        context_builder = ContextBuilder(db, enable_reasoning=True)
+        
+        # First, determine question type
+        question_type = classify_question(user_message)
+        logger.info(f"Question classified as: {question_type}")
+        
+        # Build initial context
+        context_result = await context_builder.build_context(
+            session_id=session_id,
+            user_message=user_message,
+            include_web_search=True,
+            include_documents=True
+        )
+        
+        context = context_result.get("context", "")
+        
+        # Apply reasoning based on the selected type
+        reasoning = await context_builder._apply_reasoning(context, user_message, reasoning_type, question_type)
+        
+        # Add reasoning to the result
+        context_result["reasoning"] = reasoning
+        context_result["question_type"] = question_type
+        
+        return context_result
+    except Exception as e:
+        logger.error(f"Error in build_context_with_reasoning: {e}")
+        return {"context": "", "metadata": {}, "error": str(e)}
 
 async def build_context_with_cot(db: Session, session_id: int, user_message: str) -> Dict[str, Any]:
     """Build context with Chain of Thought reasoning"""

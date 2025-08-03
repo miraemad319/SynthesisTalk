@@ -1,309 +1,378 @@
 // src/components/tools/ToolPanel.jsx
 
 import React from 'react';
+import { 
+  Card, 
+  Switch, 
+  Typography, 
+  Space, 
+  Divider, 
+  Tooltip,
+  Badge,
+  Button
+} from 'antd';
+import {
+  SearchOutlined,
+  FileTextOutlined,
+  ThunderboltOutlined,
+  BulbOutlined,
+  SettingOutlined,
+  InfoCircleOutlined
+} from '@ant-design/icons';
 
-export default function ToolPanel({
-  tools,
-  onToolToggle,
-  onSummarizeClick,
-  documentsCount = 0,
-  documents = []
-}) {
-  const handleWebSearchToggle = (enabled) => {
-    onToolToggle('webSearch', enabled);
+const { Title, Text } = Typography;
+
+const ToolPanel = ({ tools, onToolChange, onSummarize }) => {
+  const handleToolToggle = (toolName, value) => {
+    console.log(`Tool toggle: ${toolName} = ${value}`); // Debug log
+    if (onToolChange) {
+      onToolChange(toolName, value);
+    }
   };
 
-  const handleDocumentSearchToggle = (enabled) => {
-    onToolToggle('documentSearch', enabled);
-  };
+  const activeToolsCount = Object.values(tools || {}).filter(Boolean).length;
 
-  const handleChainOfThoughtToggle = (enabled) => {
-    onToolToggle('chainOfThought', enabled);
-  };
-
-  const handleInsightsToggle = (enabled) => {
-    onToolToggle('insights', enabled);
-  };
-
-  const handleSummarizationToggle = (enabled) => {
-    onToolToggle('summarization', enabled);
-  };
+  // Debug: Log current tools state
+  console.log('ToolPanel - Current tools state:', tools);
+  console.log('ToolPanel - onToolChange function:', onToolChange);
 
   return (
-    <div className="tool-panel p-4 bg-gray-50 border-l border-gray-200 w-64 overflow-y-auto">
-      <h2 className="text-lg font-semibold mb-4 text-gray-800">Tools</h2>
-     
-      <div className="space-y-4">
-        {/* Chain of Thought Tool */}
-        <div className="space-y-2">
-          <label className="flex items-center space-x-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={tools.chainOfThought || false}
-              onChange={(e) => handleChainOfThoughtToggle(e.target.checked)}
-              className="rounded"
+    <div 
+      style={{ 
+        width: 320, 
+        height: '100%', 
+        borderLeft: '1px solid #f0f0f0',
+        backgroundColor: '#fafafa',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden' // Prevent panel overflow
+      }}
+    >
+      {/* Header */}
+      <div style={{ 
+        padding: '20px 20px 16px 20px',
+        backgroundColor: '#fafafa',
+        borderBottom: '1px solid #f0f0f0',
+        flexShrink: 0 // Prevent header from shrinking
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+          <SettingOutlined style={{ color: '#1890ff', fontSize: '18px' }} />
+          <Title level={4} style={{ margin: 0, color: '#1f1f1f', fontWeight: 600 }}>
+            AI Tools
+          </Title>
+          {activeToolsCount > 0 && (
+            <Badge 
+              count={activeToolsCount} 
+              style={{ backgroundColor: '#52c41a' }}
             />
-            <span className="text-sm text-gray-700">🧠 Chain of Thought</span>
-          </label>
-         
-          {tools.chainOfThought && (
-            <div className="ml-6 p-2 bg-purple-50 rounded border border-purple-200">
-              <div className="text-xs text-purple-700">
-                ✅ Reasoning process will be shown in responses
-              </div>
-              <div className="text-xs text-purple-600 mt-1">
-                AI will explain its thinking step-by-step
-              </div>
-            </div>
           )}
         </div>
+        <Text type="secondary" style={{ fontSize: '12px' }}>
+          Configure AI capabilities for your chat
+        </Text>
+      </div>
 
-        {/* Web Search Tool */}
-        <div className="space-y-2">
-          <label className="flex items-center space-x-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={tools.webSearch || false}
-              onChange={(e) => handleWebSearchToggle(e.target.checked)}
-              className="rounded"
-            />
-            <span className="text-sm text-gray-700">🌐 Web Search</span>
-          </label>
-
-          {tools.webSearch && (
-            <div className="ml-6 space-y-2">
-              <div className="p-2 bg-green-50 rounded border border-green-200">
-                <div className="text-xs text-green-700">
-                  ✅ Web search is active for all messages
+      {/* FIXED: Scrollable content area */}
+      <div style={{ 
+        flex: 1, 
+        padding: '16px 20px 0 20px', 
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        minHeight: 0, // Important for flex child to be scrollable
+        scrollBehavior: 'smooth'
+      }}>
+        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          {/* Web Search Tool */}
+          <Card 
+            size="small" 
+            style={{ 
+              borderRadius: '8px',
+              border: tools?.webSearch ? '2px solid #52c41a' : '1px solid #f0f0f0',
+              backgroundColor: tools?.webSearch ? '#f6ffed' : '#ffffff',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
+            }}
+            onClick={() => handleToolToggle('webSearch', !tools?.webSearch)}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ flex: 1, marginRight: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <SearchOutlined 
+                    style={{ 
+                      color: tools?.webSearch ? '#52c41a' : '#1890ff',
+                      fontSize: '16px'
+                    }} 
+                  />
+                  <Text strong style={{ color: tools?.webSearch ? '#52c41a' : '#1f1f1f' }}>
+                    Web Search
+                  </Text>
+                  <Tooltip title="AI will search the internet for current information">
+                    <InfoCircleOutlined style={{ color: '#d9d9d9', fontSize: '12px' }} />
+                  </Tooltip>
                 </div>
-                <div className="text-xs text-green-600 mt-1">
-                  The AI will automatically search the web when relevant
+                <Text type="secondary" style={{ fontSize: '12px', lineHeight: '16px' }}>
+                  Search the web for latest information, news, and real-time data
+                </Text>
+              </div>
+              <Switch
+                checked={tools?.webSearch || false}
+                onChange={(checked) => {
+                  console.log(`Switch clicked: webSearch = ${checked}`);
+                  handleToolToggle('webSearch', checked);
+                }}
+                size="small"
+                onClick={(checked, e) => {
+                  e.stopPropagation(); // Prevent card click
+                }}
+              />
+            </div>
+          </Card>
+
+          {/* Document Search Tool */}
+          <Card 
+            size="small" 
+            style={{ 
+              borderRadius: '8px',
+              border: tools?.documentSearch ? '2px solid #1890ff' : '1px solid #f0f0f0',
+              backgroundColor: tools?.documentSearch ? '#f0f9ff' : '#ffffff',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
+            }}
+            onClick={() => handleToolToggle('documentSearch', !tools?.documentSearch)}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ flex: 1, marginRight: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <FileTextOutlined 
+                    style={{ 
+                      color: tools?.documentSearch ? '#1890ff' : '#1890ff',
+                      fontSize: '16px'
+                    }} 
+                  />
+                  <Text strong style={{ color: tools?.documentSearch ? '#1890ff' : '#1f1f1f' }}>
+                    Document Search
+                  </Text>
+                  <Tooltip title="AI will search through your uploaded documents">
+                    <InfoCircleOutlined style={{ color: '#d9d9d9', fontSize: '12px' }} />
+                  </Tooltip>
                 </div>
+                <Text type="secondary" style={{ fontSize: '12px', lineHeight: '16px' }}>
+                  Search through uploaded PDFs, documents, and files
+                </Text>
               </div>
+              <Switch
+                checked={tools?.documentSearch || false}
+                onChange={(checked) => {
+                  console.log(`Switch clicked: documentSearch = ${checked}`);
+                  handleToolToggle('documentSearch', checked);
+                }}
+                size="small"
+                onClick={(checked, e) => {
+                  e.stopPropagation(); // Prevent card click
+                }}
+              />
             </div>
-          )}
-        </div>
+          </Card>
 
-        {/* Document Search Tool */}
-        <div className="space-y-2">
-          <label className="flex items-center space-x-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={tools.documentSearch || false}
-              onChange={(e) => handleDocumentSearchToggle(e.target.checked)}
-              className="rounded"
-            />
-            <span className="text-sm text-gray-700">📄 Document Search</span>
-          </label>
-         
-          {tools.documentSearch && documentsCount === 0 && (
-            <div className="ml-6 p-2 bg-yellow-50 rounded border border-yellow-200">
-              <div className="text-xs text-yellow-700">
-                💡 Upload documents first to use this feature
-              </div>
-            </div>
-          )}
-
-          {tools.documentSearch && documentsCount > 0 && (
-            <div className="ml-6 p-2 bg-blue-50 rounded border border-blue-200">
-              <div className="text-xs text-blue-700">
-                ✅ Document search is active for all messages
-              </div>
-              <div className="text-xs text-blue-600 mt-1">
-                The AI will search through your documents when relevant
-              </div>
-            </div>
-          )}
-
-          {tools.documentSearch && (
-            <div className="ml-6 text-xs text-gray-500">
-              {documentsCount > 0
-                ? `${documentsCount} document${documentsCount > 1 ? 's' : ''} available`
-                : "Upload documents to enable search"
-              }
-            </div>
-          )}
-        </div>
-
-        {/* Insights Tool */}
-        <div className="space-y-2">
-          <label className="flex items-center space-x-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={tools.insights || false}
-              onChange={(e) => handleInsightsToggle(e.target.checked)}
-              className="rounded"
-            />
-            <span className="text-sm text-gray-700">💡 Generate Insights</span>
-          </label>
-
-          {tools.insights && (
-            <div className="ml-6 space-y-2">
-              <div className="p-2 bg-orange-50 rounded border border-orange-200">
-                <div className="text-xs text-orange-700">
-                  ✅ Insights generation is active
+          {/* Chain of Thought Tool */}
+          <Card 
+            size="small" 
+            style={{ 
+              borderRadius: '8px',
+              border: tools?.chainOfThought ? '2px solid #722ed1' : '1px solid #f0f0f0',
+              backgroundColor: tools?.chainOfThought ? '#f9f0ff' : '#ffffff',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
+            }}
+            onClick={() => handleToolToggle('chainOfThought', !tools?.chainOfThought)}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ flex: 1, marginRight: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <ThunderboltOutlined 
+                    style={{ 
+                      color: tools?.chainOfThought ? '#722ed1' : '#722ed1',
+                      fontSize: '16px'
+                    }} 
+                  />
+                  <Text strong style={{ color: tools?.chainOfThought ? '#722ed1' : '#1f1f1f' }}>
+                    Chain of Thought
+                  </Text>
+                  <Tooltip title="AI will show its reasoning process step by step">
+                    <InfoCircleOutlined style={{ color: '#d9d9d9', fontSize: '12px' }} />
+                  </Tooltip>
                 </div>
-                <div className="text-xs text-orange-600 mt-1">
-                  AI will analyze patterns, trends, and generate visualizations
-                </div>
+                <Text type="secondary" style={{ fontSize: '12px', lineHeight: '16px' }}>
+                  See the AI's reasoning process and thought steps
+                </Text>
               </div>
+              <Switch
+                checked={tools?.chainOfThought || false}
+                onChange={(checked) => {
+                  console.log(`Switch clicked: chainOfThought = ${checked}`);
+                  handleToolToggle('chainOfThought', checked);
+                }}
+                size="small"
+                onClick={(checked, e) => {
+                  e.stopPropagation(); // Prevent card click
+                }}
+              />
             </div>
-          )}
-        </div>
+          </Card>
 
-        {/* Summarization Tool */}
-        <div className="border-t pt-3">
-          <label className="flex items-center space-x-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={tools.summarization || false}
-              onChange={(e) => handleSummarizationToggle(e.target.checked)}
-              className="rounded"
-            />
-            <span className="text-sm text-gray-700">📋 Summarization</span>
-          </label>
+          {/* Insights Tool */}
+          <Card 
+            size="small" 
+            style={{ 
+              borderRadius: '8px',
+              border: tools?.insights ? '2px solid #fa8c16' : '1px solid #f0f0f0',
+              backgroundColor: tools?.insights ? '#fff7e6' : '#ffffff',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
+            }}
+            onClick={() => handleToolToggle('insights', !tools?.insights)}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ flex: 1, marginRight: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <BulbOutlined 
+                    style={{ 
+                      color: tools?.insights ? '#fa8c16' : '#fa8c16',
+                      fontSize: '16px'
+                    }} 
+                  />
+                  <Text strong style={{ color: tools?.insights ? '#fa8c16' : '#1f1f1f' }}>
+                    AI Insights
+                  </Text>
+                  <Tooltip title="Generate analytical insights and patterns from conversations">
+                    <InfoCircleOutlined style={{ color: '#d9d9d9', fontSize: '12px' }} />
+                  </Tooltip>
+                </div>
+                <Text type="secondary" style={{ fontSize: '12px', lineHeight: '16px' }}>
+                  Generate insights, patterns, and analytical summaries
+                </Text>
+              </div>
+              <Switch
+                checked={tools?.insights || false}
+                onChange={(checked) => {
+                  console.log(`Switch clicked: insights = ${checked}`);
+                  handleToolToggle('insights', checked);
+                }}
+                size="small"
+                onClick={(checked, e) => {
+                  e.stopPropagation(); // Prevent card click
+                }}
+              />
+            </div>
+          </Card>
 
-          {tools.summarization && (
-            <div className="mt-3 ml-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <button
-                onClick={onSummarizeClick}
-                className="w-full bg-blue-500 text-white text-sm py-2 px-3 rounded hover:bg-blue-600 transition-colors"
+          <Divider style={{ margin: '16px 0' }} />
+
+          {/* Quick Actions */}
+          <div>
+            <Title level={5} style={{ margin: '0 0 12px 0', color: '#1f1f1f' }}>
+              Quick Actions
+            </Title>
+            <Space direction="vertical" style={{ width: '100%' }} size="small">
+              <Button
+                block
+                onClick={() => {
+                  console.log('Summarize button clicked');
+                  if (onSummarize) {
+                    onSummarize();
+                  }
+                }}
+                disabled={!onSummarize}
+                style={{
+                  borderRadius: '6px',
+                  height: '36px',
+                  textAlign: 'left',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'flex-start',
+                  gap: '8px'
+                }}
+                icon={<BulbOutlined />}
               >
-                📋 Summarize Last Message
-              </button>
-              <div className="mt-2 text-xs text-blue-600">
-                Click to summarize the most recent bot response, or type "summarize" in chat
+                Summarize Conversation
+              </Button>
+            </Space>
+          </div>
+
+          {/* Tool Status Summary */}
+          {activeToolsCount > 0 && (
+            <Card 
+              size="small" 
+              style={{ 
+                backgroundColor: '#f0f9ff', 
+                border: '1px solid #e6f7ff',
+                borderRadius: '8px'
+              }}
+            >
+              <div style={{ textAlign: 'center' }}>
+                <Text strong style={{ color: '#1890ff', fontSize: '14px' }}>
+                  {activeToolsCount} Tool{activeToolsCount !== 1 ? 's' : ''} Active
+                </Text>
+                <br />
+                <Text type="secondary" style={{ fontSize: '11px' }}>
+                  AI capabilities are enhanced
+                </Text>
               </div>
-            </div>
+            </Card>
           )}
-        </div>
 
-        {/* Documents Section */}
-        {documentsCount > 0 && (
-          <div className="border-t pt-3">
-            <div className="text-sm font-medium text-gray-700 mb-2">📄 Uploaded Documents</div>
-            <div className="space-y-1 max-h-32 overflow-y-auto">
-              {documents.map((doc, index) => (
-                <div key={doc.id || index} className="p-2 bg-white rounded border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
-                  <div className="text-xs font-medium text-gray-800 truncate" title={doc.filename}>
-                    {doc.filename}
-                  </div>
-                  {doc.text_preview && (
-                    <div className="text-xs text-gray-500 mt-1" style={{
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden'
-                    }}>
-                      {doc.text_preview.substring(0, 100)}...
-                    </div>
-                  )}
-                  <div className="text-xs text-blue-600 mt-1 hover:text-blue-800">
-                    📖 Available for search
-                  </div>
-                </div>
-              ))}
+          {/* Debug Information - Remove in production */}
+          <Card 
+            size="small" 
+            style={{ 
+              backgroundColor: '#fff2e8', 
+              border: '1px solid #ffd591',
+              borderRadius: '6px'
+            }}
+          >
+            <Text strong style={{ fontSize: '11px', color: '#fa8c16', display: 'block' }}>
+              Debug Info:
+            </Text>
+            <div style={{ fontSize: '10px', color: '#8c4a1a', marginTop: '4px' }}>
+              <div>Web Search: {tools?.webSearch ? 'ON' : 'OFF'}</div>
+              <div>Document Search: {tools?.documentSearch ? 'ON' : 'OFF'}</div>
+              <div>Chain of Thought: {tools?.chainOfThought ? 'ON' : 'OFF'}</div>
+              <div>Insights: {tools?.insights ? 'ON' : 'OFF'}</div>
+              <div>Active Count: {activeToolsCount}</div>
+              <div>onToolChange: {onToolChange ? 'Available' : 'Missing'}</div>
             </div>
-            <div className="mt-2 text-xs text-gray-500">
-              Documents are automatically searched when document search is enabled
-            </div>
-          </div>
-        )}
+          </Card>
+        </Space>
+      </div>
 
-        {/* Search Tips */}
-        <div className="border-t pt-3">
-          <div className="text-xs text-gray-600 mb-2 font-medium">💡 Usage Tips:</div>
-          <div className="space-y-1 text-xs text-gray-500">
-            {tools.chainOfThought && (
-              <div>• Chain of thought shows AI reasoning</div>
-            )}
-            {tools.webSearch && (
-              <div>• Web search is automatic when relevant</div>
-            )}
-            {tools.documentSearch && documentsCount > 0 && (
-              <div>• Document search is automatic when relevant</div>
-            )}
-            {tools.insights && (
-              <div>• Insights include patterns, trends & visualizations</div>
-            )}
-            {!tools.webSearch && !tools.documentSearch && !tools.insights && !tools.chainOfThought && (
-              <div>• Enable tools above for enhanced AI responses</div>
-            )}
-            <div>• Try: "What's the latest news about AI?"</div>
-            <div>• Try: "Search the web for recent developments"</div>
-            {documentsCount > 0 && (
-              <div>• Try: "What does my document say about...?"</div>
-            )}
-            {tools.summarization && <div>• Use "summarize" to get summaries</div>}
+      {/* Bottom tips section */}
+      <div style={{ 
+        padding: '16px 20px 20px 20px',
+        backgroundColor: '#fafafa',
+        borderTop: '1px solid #f0f0f0',
+        flexShrink: 0 // Prevent footer from shrinking
+      }}>
+        <Card 
+          size="small" 
+          style={{ 
+            backgroundColor: '#f6ffed', 
+            border: '1px solid #d9f7be',
+            borderRadius: '6px'
+          }}
+        >
+          <div style={{ textAlign: 'center' }}>
+            <Text strong style={{ color: '#52c41a', fontSize: '12px' }}>
+              💡 Pro Tip
+            </Text>
+            <br />
+            <Text style={{ fontSize: '11px', color: '#389e0d', lineHeight: '14px' }}>
+              Enable multiple tools for the most comprehensive AI assistance
+            </Text>
           </div>
-        </div>
-
-        {/* Status Indicators */}
-        <div className="border-t pt-3">
-          <div className="text-xs text-gray-600 mb-2 font-medium">🔧 Active Tools:</div>
-          <div className="space-y-1">
-            {tools.chainOfThought && (
-              <div className="text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded">
-                🧠 Chain of Thought: Active
-              </div>
-            )}
-            {tools.webSearch && (
-              <div className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
-                🌐 Web Search: Active
-              </div>
-            )}
-            {tools.documentSearch && documentsCount > 0 && (
-              <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                📄 Document Search: Active
-              </div>
-            )}
-            {tools.insights && (
-              <div className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded">
-                💡 Insights: Active
-              </div>
-            )}
-            {tools.summarization && (
-              <div className="text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded">
-                📋 Summarization: Active
-              </div>
-            )}
-            {!tools.webSearch && !tools.documentSearch && !tools.chainOfThought && !tools.insights && !tools.summarization && (
-              <div className="text-xs text-gray-400 italic">
-                No tools currently active
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Feature Explanations */}
-        <div className="border-t pt-3 mt-4">
-          <div className="text-xs text-gray-600 mb-2 font-medium">ℹ️ Tool Descriptions:</div>
-          <div className="space-y-2 text-xs text-gray-500">
-            <div>
-              <strong>Chain of Thought:</strong> Shows AI's step-by-step reasoning process
-            </div>
-            <div>
-              <strong>Web Search:</strong> Searches internet for current information
-            </div>
-            <div>
-              <strong>Document Search:</strong> Searches through your uploaded files
-            </div>
-            <div>
-              <strong>Insights:</strong> Analyzes data patterns and creates visualizations
-            </div>
-            <div>
-              <strong>Summarization:</strong> Creates concise summaries of responses
-            </div>
-          </div>
-        </div>
-
-        {/* Footer Info */}
-        <div className="border-t pt-3 mt-4">
-          <div className="text-xs text-gray-400 text-center">
-            Tools enhance AI responses with advanced capabilities
-          </div>
-        </div>
+        </Card>
       </div>
     </div>
   );
-}
+};
+
+export default ToolPanel;

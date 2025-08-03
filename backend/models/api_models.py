@@ -69,11 +69,16 @@ class ChatRequest(BaseRequest):
     enable_insights: bool = False
     reasoning_type: Optional[ReasoningType] = ReasoningType.HYBRID
 
+class ToolCall(BaseModel):
+    tool: str
+    parameters: Optional[Dict[str, Any]] = None
+    results: Optional[Any] = None
+    
 class ChatResponse(BaseResponse):
     """Chat response model"""
     response: str
     session_id: int
-    tool_calls_made: List[str] = []
+    tool_calls_made: List[ToolCall] = []
     reasoning_output: Optional[str] = None
     question_type: Optional[str] = None
     insights: Optional[Dict[str, Any]] = None
