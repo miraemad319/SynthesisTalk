@@ -63,6 +63,7 @@ Simple explanation:"""
         db.commit()
         db.refresh(explanation_message)
         return explanation_message
+        
 async def clarify(db: Session, session_id: int, content: str) -> Message:
     """Add more details or context to the given content using an LLM with self-correction."""
     try:
